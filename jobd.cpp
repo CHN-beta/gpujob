@@ -74,11 +74,11 @@ int main()
 						for (std::size_t i = 0; i < command.size(); i++)
 							if (command[i] == '"')
 								command.insert(i++, 1, '\\');
-						// run task in a group
-						task = std::make_shared<boost::process::group>();
-						auto process = boost::process::child(fmt::format(R"(su - {} --session-command "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
-								it->user, it->path, it->assign_to, command, "output.txt"), *task);
-						process.detach();
+						task = std::make_shared<boost::process::child>(fmt::format
+							(
+								R"(su - {} --session-command "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
+								it->user, it->path, it->assign_to, command, "output.txt"
+							));
 						jobs_changed = true;
 					}
 				}
