@@ -31,7 +31,8 @@ int main()
 				for (auto& job : remove_jobs)
 				{
 					auto it = std::find_if(jobs.begin(), jobs.end(), [&](auto& j){return j.id == job;});
-					if (it != jobs.end())
+					// if (it != jobs.end())
+					if (it != jobs.end() && it->state == job::status::pending)
 					{
 						if (it->state == job::status::running)
 						{
@@ -76,7 +77,7 @@ int main()
 								command.insert(i++, 1, '\\');
 						task = std::make_shared<boost::process::child>(fmt::format
 							(
-								R"(su - {} --session-command "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
+								R"(su - {} "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
 								it->user, it->path, it->assign_to, command, "output.txt"
 							));
 						jobs_changed = true;

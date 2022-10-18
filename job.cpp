@@ -191,7 +191,7 @@ int main(int argc, const char** argv)
 						if (job.id == id)
 						{
 							if (job.state == job::status::running)
-								std::cout << "已经开始运行的任务理论上讲可能会取消失败，你需要自己去确认。";
+								throw std::runtime_error{"已经开始运行的任务暂时取消不了，你可以自己去杀。"};
 							exist = true;
 							break;
 						}
