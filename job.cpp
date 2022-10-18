@@ -105,7 +105,7 @@ int main(int argc, const char** argv)
 				.path = std::filesystem::current_path().string(), .command = script, .state = job::status::pending
 			};
 
-			write_in({j}, {});
+			append_in({j}, {});
 			std::cout << "提交成功，可能需要几秒才会出现在列表中。\n" << std::endl;
 		}
 		else if (args[0] == "q" || args[0] == "query")
@@ -133,7 +133,7 @@ int main(int argc, const char** argv)
 				for (auto& job : out)
 					std::cout << fmt::format
 					(
-						"{}\t{}\t{}\t{}\t{}\n", job.id, job.user,
+						"{}\t{}\t{}\t{}\t{}\t{}\n", job.id, job.user,
 						std::vector<std::string>
 							{"6.3.0-std", "6.3.0-gam", "6.3.1-std", "6.3.1-gam", "custom"}[job.script_id],
 							gpus[job.assign_to], nameof::nameof_enum(job.state), job.path
@@ -175,7 +175,7 @@ int main(int argc, const char** argv)
 						if (job.user == user)
 							std::cout << fmt::format
 							(
-								"{}\t{}\t{}\t{}\n", job.id,
+								"{}\t{}\t{}\t{}\t{}\n", job.id,
 								std::vector<std::string>
 									{"6.3.0-std", "6.3.0-gam", "6.3.1-std", "6.3.1-gam", "custom"}[job.script_id],
 									queue_gpu_name()[job.assign_to], nameof::nameof_enum(job.state), job.path
@@ -195,7 +195,7 @@ int main(int argc, const char** argv)
 						}
 					if (!exist)
 						throw std::runtime_error{fmt::format("Invalid id: {}", id)};
-					write_in({}, {id});
+					append_in({}, {id});
 					std::cout << "取消成功。\n" << std::endl;
 				}
 			}

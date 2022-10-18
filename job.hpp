@@ -65,6 +65,29 @@ inline void write_in(std::vector<job> new_jobs, std::vector<unsigned> remove_job
 	}
 }
 
+inline void append_in(std::vector<job> new_jobs, std::vector<unsigned> remove_jobs)
+{
+	if (!std::filesystem::exists("/tmp/gpujob"))
+		std::filesystem::create_directory("/tmp/gpujob");
+	if (!std::filesystem::exists("/tmp/gpujob/in.lock"))
+		std::ofstream{"/tmp/gpujob/in.lock"};
+	boost::interprocess::file_lock in_lock{"/tmp/gpujob/in.lock"};
+	in_lock.lock();
+	std::vector<job> previous_new_jobs;
+	std::vector<unsigned> previous_remove_jobs;
+	if (std::filesystem::exists("/tmp/gpujob/in.dat"))
+	{
+		std::ifstream in{"/tmp/gpujob/in.dat"};
+		cereal::JSONInputArchive{in}(previous_new_jobs, previous_remove_jobs);
+	}
+	previous_new_jobs.insert(previous_new_jobs.end(), new_jobs.begin(), new_jobs.end());
+	previous_remove_jobs.insert(previous_remove_jobs.end(), remove_jobs.begin(), remove_jobs.end());
+	{
+		std::ofstream out{"/tmp/gpujob/in.dat"};
+		cereal::JSONOutputArchive{out}(previous_new_jobs, previous_remove_jobs);
+	}
+}
+
 inline std::vector<job> read_out()
 {
 	if (!std::filesystem::exists("/tmp/gpujob"))

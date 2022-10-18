@@ -37,7 +37,7 @@ int main()
 							tasks[it->assign_to]->wait();
 							tasks[it->assign_to].reset();
 						}
-						jobs.erase(it);
+						it->state = job::status::finished;
 					}
 				}
 				jobs_changed = true;
