@@ -59,6 +59,13 @@ inline void create_files()
 			std::filesystem::perms::group_read | std::filesystem::perms::group_write |
 			std::filesystem::perms::others_read | std::filesystem::perms::others_write
 		);
+		std::vector<job> jobs;
+		std::vector<unsigned> cancle_jobs;
+		{
+			std::ofstream os("/tmp/gpujob/in.dat");
+			cereal::JSONOutputArchive archive(os);
+			archive(jobs, cancle_jobs);
+		}
 	}
 	if (!std::filesystem::exists("/tmp/gpujob/out.lock"))
 	{
@@ -81,6 +88,13 @@ inline void create_files()
 			std::filesystem::perms::group_read | std::filesystem::perms::group_write |
 			std::filesystem::perms::others_read | std::filesystem::perms::others_write
 		);
+		std::vector<job> jobs;
+		std::vector<std::string> gpus;
+		{
+			std::ofstream os("/tmp/gpujob/out.dat");
+			cereal::JSONOutputArchive archive(os);
+			archive(jobs, gpus);
+		}
 	}
 }
 
