@@ -1,0 +1,12 @@
+[Unit]
+Description=gpujob jobd
+After=mnt-wibble.mount
+
+[Service]
+ExecStart=/usr/local/bin/jobd
+Restart=on-failure
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
