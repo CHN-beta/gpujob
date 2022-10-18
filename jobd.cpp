@@ -29,6 +29,8 @@ int main()
 					jobs.push_back(job);
 					std::clog << fmt::format("new job: {} {} {} {} {} {} {}\n",
 						job.id, job.assign_to, job.script_id, job.user, job.path, job.command, nameof::nameof_enum(job.state));
+					auto message = fmt::format("notify 'add {} {}'", job.id, job.path);
+					std::system(message.c_str());
 				}
 				for (auto& job : remove_jobs)
 				{
@@ -47,6 +49,8 @@ int main()
 						}
 						it->state = job::status::finished;
 						std::clog << fmt::format("remove job {} success\n", job);
+						auto message = fmt::format("notify 'delete {} {}'", it->id, it->path);
+						std::system(message.c_str());
 					}
 					else
 						std::clog << fmt::format("remove job {} not found\n", job);
@@ -63,7 +67,11 @@ int main()
 					{
 						for (auto& job : jobs)
 							if (job.assign_to == &task - tasks.data() && job.state == job::status::running)
+							{
 								job.state = job::status::finished;
+								auto message = fmt::format("notify 'finish {} {}'", job.id, job.path);
+								std::system(message.c_str());
+							}
 						task.reset();
 						jobs_changed = true;
 					}
@@ -82,6 +90,8 @@ int main()
 								R"(su - {} -c "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
 								it->user, it->path, it->assign_to, command, "output.txt"
 							));
+						auto message = fmt::format("notify 'start {} {}'", it->id, it->path);
+						std::system(message.c_str());
 						jobs_changed = true;
 					}
 				}
