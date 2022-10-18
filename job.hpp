@@ -100,7 +100,7 @@ inline std::vector<std::string> queue_gpu_name()
 {
 	std::vector<std::string> names;
 	boost::process::ipstream out;
-	boost::process::child c{"module load nvhpc/22.5 && pgaccelinfo | grep 'Device Name'", boost::process::std_out > out};
+	boost::process::child c{"bash -c \". /usr/share/modules/init/bash && module load nvhpc/22.5 && pgaccelinfo | grep 'Device Name'\"", boost::process::std_out > out};
 	std::string line;
 	while (c.running() && std::getline(out, line) && !line.empty())
 	{
