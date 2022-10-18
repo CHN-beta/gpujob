@@ -11,12 +11,14 @@ int main()
 		unsigned next_id = 0;
 		bool jobs_changed = true;
 
+		create_files();
+
 		while (true)
 		{
 			std::this_thread::sleep_for(1s);
 
 			// read new jobs from in.dat
-			if (std::filesystem::exists("/tmp/gpujob/in.dat"))
+			if (std::filesystem::exists("/tmp/gpujob/in.modified"))
 			{
 				auto [new_jobs, remove_jobs] = read_in();
 
@@ -31,17 +33,17 @@ int main()
 				for (auto& job : remove_jobs)
 				{
 					auto it = std::find_if(jobs.begin(), jobs.end(), [&](auto& j){return j.id == job;});
-					// if (it != jobs.end())
-					if (it != jobs.end() && it->state == job::status::pending)
+					if (it != jobs.end())
+					// if (it != jobs.end() && it->state == job::status::pending)
 					{
 						if (it->state == job::status::running)
 						{
-							std::clog << "killing\n";
 							auto pid = tasks[it->assign_to]->id();
-							auto sessid = ::getsid(pid);
-							std::clog << fmt::format("pid: {}, sessid: {}\n", pid, sessid);
+							tasks[it->assign_to]->detach();
 							tasks[it->assign_to].reset();
-							::killpg(sessid, SIGKILL);
+							std::clog << fmt::format("kill job: {} {}\n", it->id, pid);
+							auto command = fmt::format("rkill {}", pid);
+							std::system(command.c_str());
 						}
 						it->state = job::status::finished;
 						std::clog << fmt::format("remove job {} success\n", job);

@@ -192,8 +192,8 @@ int main(int argc, const char** argv)
 					for (auto& job : jobs)
 						if (job.id == id)
 						{
-							if (job.state == job::status::running)
-								throw std::runtime_error{"已经开始运行的任务暂时取消不了，你可以自己去杀。"};
+							// if (job.state == job::status::running)
+								// throw std::runtime_error{"已经开始运行的任务暂时取消不了，你可以自己去杀。"};
 							exist = true;
 							break;
 						}
