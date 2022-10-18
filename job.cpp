@@ -34,13 +34,13 @@ int main(int argc, const char** argv)
 			}
 			else
 			{
-				auto gpus = queue_gpu_name();
+				auto [jobs, gpus] = read_out();
 				if (gpus.size() != 3)
 					throw std::runtime_error{"Invalid number of gpus"};
-				auto out = read_out();
+
 				std::array<unsigned, 3> runing;
 				std::array<unsigned, 3> pending;
-				for (auto& job : out)
+				for (auto& job : jobs)
 				{
 					if (job.state == job::status::running)
 						runing[job.assign_to]++;
@@ -110,27 +110,27 @@ int main(int argc, const char** argv)
 		}
 		else if (args[0] == "q" || args[0] == "query")
 		{
-			auto gpus = queue_gpu_name();
+			auto [jobs, gpus] = read_out();
 			if (gpus.size() != 3)
 				throw std::runtime_error{"Invalid number of gpus"};
-			auto out = read_out();
+
 			// remove finished jobs
-			for (std::size_t i = 0; i < out.size(); i++)
+			for (std::size_t i = 0; i < jobs.size(); i++)
 			{
-				if (out[i].state == job::status::finished)
+				if (jobs[i].state == job::status::finished)
 				{
-					out.erase(out.begin() + i);
+					jobs.erase(jobs.begin() + i);
 					i--;
 				}
 			}
 			// sort by assign_to
-			std::sort(out.begin(), out.end(), [](const job& a, const job& b) { return a.assign_to < b.assign_to; });
-			if (out.empty())
+			std::sort(jobs.begin(), jobs.end(), [](const job& a, const job& b) { return a.assign_to < b.assign_to; });
+			if (jobs.empty())
 				std::cout << "No job but touching fish.\n" << std::endl;
 			else
 			{
 				std::cout << "id\tuser\tscript_name\tgpu name\tstatus\tpath\n";
-				for (auto& job : out)
+				for (auto& job : jobs)
 					std::cout << fmt::format
 					(
 						"{}\t{}\t{}\t{}\t{}\t{}\n", job.id, job.user,
@@ -156,7 +156,9 @@ int main(int argc, const char** argv)
 			}
 			else
 			{
-				auto jobs = read_out();
+				auto [jobs, gpus] = read_out();
+				if (gpus.size() != 3)
+					throw std::runtime_error{"Invalid number of gpus"};
 				// remove jobs not belong to user or finished
 				for (std::size_t i = 0; i < jobs.size(); i++)
 				{
@@ -178,7 +180,7 @@ int main(int argc, const char** argv)
 								"{}\t{}\t{}\t{}\t{}\n", job.id,
 								std::vector<std::string>
 									{"6.3.0-std", "6.3.0-gam", "6.3.1-std", "6.3.1-gam", "custom"}[job.script_id],
-									queue_gpu_name()[job.assign_to], nameof::nameof_enum(job.state), job.path
+									gpus[job.assign_to], nameof::nameof_enum(job.state), job.path
 							);
 					std::cout << "\n";
 					std::cout << "输入你要取消的任务的 id，按 Ctrl+C 取消取消: ";

@@ -88,7 +88,7 @@ inline void append_in(std::vector<job> new_jobs, std::vector<unsigned> remove_jo
 	}
 }
 
-inline std::vector<job> read_out()
+inline std::tuple<std::vector<job>, std::vector<std::string>> read_out()
 {
 	if (!std::filesystem::exists("/tmp/gpujob"))
 		std::filesystem::create_directory("/tmp/gpujob");
@@ -99,25 +99,12 @@ inline std::vector<job> read_out()
 	if (!std::filesystem::exists("/tmp/gpujob/out.dat"))
 		return {};
 	std::vector<job> jobs;
+	std::vector<std::string> gpus;
 	{
 		std::ifstream in{"/tmp/gpujob/out.dat"};
-		cereal::JSONInputArchive{in}(jobs);
+		cereal::JSONInputArchive{in}(jobs, gpus);
 	}
-	return jobs;
-}
-
-inline void write_out(std::vector<job> jobs)
-{
-	if (!std::filesystem::exists("/tmp/gpujob"))
-		std::filesystem::create_directory("/tmp/gpujob");
-	if (!std::filesystem::exists("/tmp/gpujob/out.lock"))
-		std::ofstream{"/tmp/gpujob/out.lock"};
-	boost::interprocess::file_lock out_lock{"/tmp/gpujob/out.lock"};
-	out_lock.lock();
-	{
-		std::ofstream out{"/tmp/gpujob/out.dat"};
-		cereal::JSONOutputArchive{out}(jobs);
-	}
+	return {jobs, gpus};
 }
 
 inline std::vector<std::string> queue_gpu_name()
@@ -136,3 +123,20 @@ inline std::vector<std::string> queue_gpu_name()
 	c.wait();
 	return names;
 }
+
+inline void write_out(std::vector<job> jobs)
+{
+	auto gpus = queue_gpu_name();
+
+	if (!std::filesystem::exists("/tmp/gpujob"))
+		std::filesystem::create_directory("/tmp/gpujob");
+	if (!std::filesystem::exists("/tmp/gpujob/out.lock"))
+		std::ofstream{"/tmp/gpujob/out.lock"};
+	boost::interprocess::file_lock out_lock{"/tmp/gpujob/out.lock"};
+	out_lock.lock();
+	{
+		std::ofstream out{"/tmp/gpujob/out.dat"};
+		cereal::JSONOutputArchive{out}(jobs, gpus);
+	}
+}
+
