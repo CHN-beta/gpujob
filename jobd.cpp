@@ -6,7 +6,7 @@ int main()
 {
 	try
 	{
-		std::array<std::shared_ptr<boost::process::group>, 3> tasks;
+		std::array<std::shared_ptr<boost::process::child>, 3> tasks;
 		std::vector<job> jobs;
 		unsigned next_id = 0;
 		bool jobs_changed = true;
@@ -36,11 +36,13 @@ int main()
 						if (it->state == job::status::running)
 						{
 							std::clog << "killing\n";
-							tasks[it->assign_to]->terminate();
-							tasks[it->assign_to]->wait();
+							auto pid = tasks[it->assign_to]->id();
+							auto sessid = ::getsid(pid);
+							std::clog << fmt::format("pid: {}, sessid: {}\n", pid, sessid);
+							tasks[it->assign_to].reset();
+							::killpg(sessid, SIGKILL);
 						}
-						else
-							it->state = job::status::finished;
+						it->state = job::status::finished;
 						std::clog << fmt::format("remove job {} success\n", job);
 					}
 					else
@@ -52,7 +54,7 @@ int main()
 			// assign new jobs
 			for (auto& task : tasks)
 			{
-				if (!task || task->wait_for(0s))
+				if (!task || !task->running())
 				{
 					if (task)
 					{
@@ -74,7 +76,7 @@ int main()
 								command.insert(i++, 1, '\\');
 						// run task in a group
 						task = std::make_shared<boost::process::group>();
-						auto process = boost::process::child(fmt::format(R"(su - {} -c "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
+						auto process = boost::process::child(fmt::format(R"(su - {} --session-command "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
 								it->user, it->path, it->assign_to, command, "output.txt"), *task);
 						process.detach();
 						jobs_changed = true;
