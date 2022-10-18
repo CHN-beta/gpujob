@@ -46,8 +46,15 @@ int main()
 			// assign new jobs
 			for (auto& task : tasks)
 			{
-				if (!task)
+				if (!task || !task->running())
 				{
+					if (task)
+					{
+						for (auto& job : jobs)
+							if (job.assign_to == &task - tasks.data())
+								job.state = job::status::finished;
+						task.reset();
+					}
 					auto it = std::find_if(jobs.begin(), jobs.end(),
 						[&](auto& j){return j.state == job::status::pending && j.assign_to == &task - tasks.data();});
 					if (it != jobs.end())

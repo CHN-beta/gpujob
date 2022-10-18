@@ -129,14 +129,14 @@ int main(int argc, const char** argv)
 				std::cout << "No job but touching fish.\n" << std::endl;
 			else
 			{
-				std::cout << "id\tuser\tscript_name\tgpu name\tpath\n";
+				std::cout << "id\tuser\tscript_name\tgpu name\tstatus\tpath\n";
 				for (auto& job : out)
 					std::cout << fmt::format
 					(
 						"{}\t{}\t{}\t{}\t{}\n", job.id, job.user,
 						std::vector<std::string>
 							{"6.3.0-std", "6.3.0-gam", "6.3.1-std", "6.3.1-gam", "custom"}[job.script_id],
-							gpus[job.assign_to], job.path
+							gpus[job.assign_to], nameof::nameof_enum(job.state), job.path
 					);
 			}
 		}
@@ -170,7 +170,7 @@ int main(int argc, const char** argv)
 					std::cout << "没有任务可以取消。\n" << std::endl;
 				else
 				{
-					std::cout << "id\tscript_name\tgpu name\tpath\n";
+					std::cout << "id\tscript_name\tgpu name\tstatus\tpath\n";
 					for (auto& job : jobs)
 						if (job.user == user)
 							std::cout << fmt::format
@@ -178,7 +178,7 @@ int main(int argc, const char** argv)
 								"{}\t{}\t{}\t{}\n", job.id,
 								std::vector<std::string>
 									{"6.3.0-std", "6.3.0-gam", "6.3.1-std", "6.3.1-gam", "custom"}[job.script_id],
-									queue_gpu_name()[job.assign_to], job.path
+									queue_gpu_name()[job.assign_to], nameof::nameof_enum(job.state), job.path
 							);
 					std::cout << "\n";
 					std::cout << "输入你要取消的任务的 id，按 Ctrl+C 取消取消: ";

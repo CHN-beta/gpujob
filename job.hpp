@@ -17,6 +17,7 @@
 # include <boost/interprocess/sync/file_lock.hpp>
 # include <boost/process.hpp>
 # include <fmt/format.h>
+# include <nameof.hpp>
 
 struct job
 {
