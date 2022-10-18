@@ -39,6 +39,7 @@ int main()
 							tasks[it->assign_to]->wait();
 							tasks[it->assign_to].reset();
 							std::clog << fmt::format("kill {} {}\n", it->id, !tasks[it->assign_to]->exit_code());
+							tasks[it->assign_to].reset();
 						}
 						it->state = job::status::finished;
 						std::clog << fmt::format("remove job {} success\n", job);
@@ -57,7 +58,7 @@ int main()
 					if (task)
 					{
 						for (auto& job : jobs)
-							if (job.assign_to == &task - tasks.data())
+							if (job.assign_to == &task - tasks.data() && job.state == job::status::running)
 								job.state = job::status::finished;
 						task.reset();
 					}
