@@ -38,8 +38,8 @@ int main(int argc, const char** argv)
 				if (gpus.size() != 3)
 					throw std::runtime_error{"Invalid number of gpus"};
 
-				std::array<unsigned, 3> runing;
-				std::array<unsigned, 3> pending;
+				std::array<unsigned, 3> runing = {};
+				std::array<unsigned, 3> pending = {};
 				for (auto& job : jobs)
 				{
 					if (job.state == job::status::running)
