@@ -190,6 +190,8 @@ int main(int argc, const char** argv)
 					for (auto& job : jobs)
 						if (job.id == id)
 						{
+							if (job.state == job::status::running)
+								std::cout << "已经开始运行的任务理论上讲可能会取消失败，你需要自己去确认。";
 							exist = true;
 							break;
 						}

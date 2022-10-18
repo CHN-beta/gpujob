@@ -9,7 +9,7 @@ int main()
 		std::array<std::shared_ptr<boost::process::child>, 3> tasks;
 		std::vector<job> jobs;
 		unsigned next_id = 0;
-		bool jobs_changed = false;
+		bool jobs_changed = true;
 
 		while (true)
 		{
@@ -35,13 +35,12 @@ int main()
 					{
 						if (it->state == job::status::running)
 						{
-							tasks[it->assign_to]->terminate();
-							tasks[it->assign_to]->wait();
-							tasks[it->assign_to].reset();
-							std::clog << fmt::format("kill {} {}\n", it->id, !tasks[it->assign_to]->exit_code());
-							tasks[it->assign_to].reset();
+							auto pid = tasks[it->assign_to]->id();
+							std::clog << fmt::format("kill job: {} {}\n", it->id, pid);
+							kill(pid, SIGTERM);
 						}
-						it->state = job::status::finished;
+						else
+							it->state = job::status::finished;
 						std::clog << fmt::format("remove job {} success\n", job);
 					}
 					else
@@ -61,6 +60,7 @@ int main()
 							if (job.assign_to == &task - tasks.data() && job.state == job::status::running)
 								job.state = job::status::finished;
 						task.reset();
+						jobs_changed = true;
 					}
 					auto it = std::find_if(jobs.begin(), jobs.end(),
 						[&](auto& j){return j.state == job::status::pending && j.assign_to == &task - tasks.data();});
@@ -73,7 +73,7 @@ int main()
 							if (command[i] == '"')
 								command.insert(i++, 1, '\\');
 						task = std::make_shared<boost::process::child>
-							(fmt::format(R"(runuser {} -c "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
+							(fmt::format(R"(su - {} -c "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
 								it->user, it->path, it->assign_to, command, "output.txt"));
 						jobs_changed = true;
 					}
