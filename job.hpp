@@ -31,15 +31,64 @@ struct job
 	}
 };
 
-inline std::tuple<std::vector<job>, std::vector<unsigned>> read_in()
+inline void create_files()
 {
 	if (!std::filesystem::exists("/tmp/gpujob"))
+	{
 		std::filesystem::create_directory("/tmp/gpujob");
+		std::filesystem::permissions("/tmp/gpujob", std::filesystem::perms::all);
+	}
 	if (!std::filesystem::exists("/tmp/gpujob/in.lock"))
-		std::ofstream{"/tmp/gpujob/in.lock"};
+	{
+		std::ofstream("/tmp/gpujob/in.lock");
+		std::filesystem::permissions
+		(
+			"/tmp/gpujob/in.lock",
+			std::filesystem::perms::owner_read | std::filesystem::perms::owner_write |
+			std::filesystem::perms::group_read | std::filesystem::perms::group_write |
+			std::filesystem::perms::others_read | std::filesystem::perms::others_write
+		);
+	}
+	if (!std::filesystem::exists("/tmp/gpujob/in.dat"))
+	{
+		std::ofstream("/tmp/gpujob/in.dat");
+		std::filesystem::permissions
+		(
+			"/tmp/gpujob/in.dat",
+			std::filesystem::perms::owner_read | std::filesystem::perms::owner_write |
+			std::filesystem::perms::group_read | std::filesystem::perms::group_write |
+			std::filesystem::perms::others_read | std::filesystem::perms::others_write
+		);
+	}
+	if (!std::filesystem::exists("/tmp/gpujob/out.lock"))
+	{
+		std::ofstream("/tmp/gpujob/out.lock");
+		std::filesystem::permissions
+		(
+			"/tmp/gpujob/out.lock",
+			std::filesystem::perms::owner_read | std::filesystem::perms::owner_write |
+			std::filesystem::perms::group_read | std::filesystem::perms::group_write |
+			std::filesystem::perms::others_read | std::filesystem::perms::others_write
+		);
+	}
+	if (!std::filesystem::exists("/tmp/gpujob/out.dat"))
+	{
+		std::ofstream("/tmp/gpujob/out.dat");
+		std::filesystem::permissions
+		(
+			"/tmp/gpujob/out.dat",
+			std::filesystem::perms::owner_read | std::filesystem::perms::owner_write |
+			std::filesystem::perms::group_read | std::filesystem::perms::group_write |
+			std::filesystem::perms::others_read | std::filesystem::perms::others_write
+		);
+	}
+}
+
+inline std::tuple<std::vector<job>, std::vector<unsigned>> read_in()
+{
 	boost::interprocess::file_lock in_lock{"/tmp/gpujob/in.lock"};
 	in_lock.lock();
-	if (!std::filesystem::exists("/tmp/gpujob/in.dat"))
+	if (!std::filesystem::exists("/tmp/gpujob/in.modified"))
 		return {};
 	std::vector<job> new_jobs;
 	std::vector<unsigned> remove_jobs;
@@ -47,30 +96,30 @@ inline std::tuple<std::vector<job>, std::vector<unsigned>> read_in()
 		std::ifstream in{"/tmp/gpujob/in.dat"};
 		cereal::JSONInputArchive{in}(new_jobs, remove_jobs);
 	}
-	std::filesystem::remove("/tmp/gpujob/in.dat");
+	std::vector<job> empty_jobs;
+	std::vector<unsigned> empty_remove;
+	{
+		std::ofstream out{"/tmp/gpujob/in.dat"};
+		cereal::JSONOutputArchive{out}(empty_jobs, empty_remove);
+	}
+	std::filesystem::remove("/tmp/gpujob/in.modified");
 	return {new_jobs, remove_jobs};
 }
 
 inline void write_in(std::vector<job> new_jobs, std::vector<unsigned> remove_jobs)
 {
-	if (!std::filesystem::exists("/tmp/gpujob"))
-		std::filesystem::create_directory("/tmp/gpujob");
-	if (!std::filesystem::exists("/tmp/gpujob/in.lock"))
-		std::ofstream{"/tmp/gpujob/in.lock"};
 	boost::interprocess::file_lock in_lock{"/tmp/gpujob/in.lock"};
 	in_lock.lock();
 	{
 		std::ofstream out{"/tmp/gpujob/in.dat"};
 		cereal::JSONOutputArchive{out}(new_jobs, remove_jobs);
 	}
+	if (!std::filesystem::exists("/tmp/gpujob/in.modified"))
+		std::ofstream{"/tmp/gpujob/in.modified"};
 }
 
 inline void append_in(std::vector<job> new_jobs, std::vector<unsigned> remove_jobs)
 {
-	if (!std::filesystem::exists("/tmp/gpujob"))
-		std::filesystem::create_directory("/tmp/gpujob");
-	if (!std::filesystem::exists("/tmp/gpujob/in.lock"))
-		std::ofstream{"/tmp/gpujob/in.lock"};
 	boost::interprocess::file_lock in_lock{"/tmp/gpujob/in.lock"};
 	in_lock.lock();
 	std::vector<job> previous_new_jobs;
@@ -86,6 +135,8 @@ inline void append_in(std::vector<job> new_jobs, std::vector<unsigned> remove_jo
 		std::ofstream out{"/tmp/gpujob/in.dat"};
 		cereal::JSONOutputArchive{out}(previous_new_jobs, previous_remove_jobs);
 	}
+	if (!std::filesystem::exists("/tmp/gpujob/in.modified"))
+		std::ofstream{"/tmp/gpujob/in.modified"};
 }
 
 inline std::tuple<std::vector<job>, std::vector<std::string>> read_out()
