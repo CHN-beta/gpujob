@@ -77,7 +77,7 @@ int main()
 								command.insert(i++, 1, '\\');
 						task = std::make_shared<boost::process::child>(fmt::format
 							(
-								R"(su - {} "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
+								R"(su - {} -c "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
 								it->user, it->path, it->assign_to, command, "output.txt"
 							));
 						jobs_changed = true;
