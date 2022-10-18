@@ -25,6 +25,8 @@ int main()
 					job.id = next_id++;
 					job.state = job::status::pending;
 					jobs.push_back(job);
+					std::clog << fmt::format("new job: {} {} {} {} {} {} {}\n",
+						job.id, job.assign_to, job.script_id, job.user, job.path, job.command, nameof::nameof_enum(job.state));
 				}
 				for (auto& job : remove_jobs)
 				{
@@ -36,9 +38,13 @@ int main()
 							tasks[it->assign_to]->terminate();
 							tasks[it->assign_to]->wait();
 							tasks[it->assign_to].reset();
+							std::clog << fmt::format("kill {} {}\n", it->id, !tasks[it->assign_to]->exit_code());
 						}
 						it->state = job::status::finished;
+						std::clog << fmt::format("remove job {} success\n", job);
 					}
+					else
+						std::clog << fmt::format("remove job {} not found\n", job);
 				}
 				jobs_changed = true;
 			}
