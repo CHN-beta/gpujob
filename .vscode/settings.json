@@ -86,6 +86,7 @@
 		"typeinfo": "cpp",
 		"valarray": "cpp",
 		"variant": "cpp",
-		"*.inc": "cpp"
+		"*.inc": "cpp",
+		"gsl_byte": "cpp"
 	}
 }
