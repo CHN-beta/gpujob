@@ -84,7 +84,7 @@ std::map<std::string, std::string> request_new_job_detail_from_user
     auto device_dropdown = ftxui::Dropdown(&device_names, &device_selected);
 
     std::string lammps_script_text = "in.lammps";
-    auto lammps_script_input = ftxui::Input(&lammps_script_text, "");
+    auto lammps_script_input = ftxui::Input(&lammps_script_text, "") | ftxui::flex_shrink;
 
     std::string mpi_threads_text = "4";
     auto mpi_threads_input = ftxui::Input(&mpi_threads_text, "");
@@ -181,8 +181,7 @@ std::map<std::string, std::string> request_new_job_detail_from_user
                 (
                     ftxui::text(L"LAMMPS 输入脚本文件: "),
                     lammps_script_input->Render()
-                        | ftxui::underlined | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 15),
-                    ftxui::filler()
+                        | ftxui::underlined | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 15)
                 ));
             if
             (
