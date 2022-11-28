@@ -88,6 +88,7 @@ std::map<std::string, std::string> request_new_job_detail_from_user
     bool custom_openmp_threads_checked = false;
     std::string custom_openmp_threads_text = "2";
     bool run_now_checked = false;
+    bool run_in_container_checked = false;
 
     auto layout = ftxui::Container::Vertical
     ({
@@ -165,12 +166,21 @@ std::map<std::string, std::string> request_new_job_detail_from_user
                     || program_internal_names[program_selected] == "Lammps")
                     && std::get<0>(devices[device_selected]) != std::nullopt;
             }),
-            ftxui::Checkbox("立即开始运行", &run_now_checked)
+            ftxui::Checkbox("立即开始运行", &run_now_checked),
+            ftxui::Checkbox("在 Ubuntu 22.04 容器中运行", &run_in_container_checked)
+                | ftxui::Maybe([&]{return program_internal_names[program_selected] == "Custom";})
         }) | ftxui::Renderer([&](ftxui::Element inner)
-                {return ftxui::vbox(ftxui::text("高级设置") | ftxui::bgcolor(ftxui::Color::Blue), inner);}),
-        ftxui::Button("提交任务", screen.ExitLoopClosure()) | ftxui::flex_shrink
+                {return ftxui::vbox(ftxui::text("高级设置") | ftxui::bgcolor(ftxui::Color::Blue), inner);}) ,
+        ftxui::Button("提交任务", screen.ExitLoopClosure()) | ftxui::Renderer([&](ftxui::Element inner)
+            {return ftxui::hbox(inner, ftxui::filler());})
     }) | ftxui::Renderer([&](ftxui::Element inner){return ftxui::window(ftxui::text("提交新任务"), inner);})
-        | ftxui::flex_shrink;
+        | ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
+        | ftxui::Renderer([&](ftxui::Element inner){return ftxui::vbox(inner, ftxui::filler(), ftxui::hbox
+            (
+                ftxui::filler(), ftxui::text("Code by CHN with "),
+                ftxui::text("❤️") | ftxui::color(ftxui::Color::Red),
+                ftxui::text(" love.")
+            ) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 1));});
     screen.Loop(layout);
     return {};
 }
