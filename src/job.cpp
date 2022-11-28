@@ -43,28 +43,26 @@ std::map<std::string, std::string> request_new_job_detail_from_user
 // 返回的字典中包括以下参数：
 //  基本信息：
 //      "Canceled": 存在这个键时，表示用户取消了提交任务，这时以下参数都可以不存在。
-//      "Program": "Vasp" 或 "Lammps" 或 "Custom"，表明用户选择的程序。
-//      "VaspVersion": "6.3.0" 或 "6.3.1"，表明用户选择的 VASP 版本。只当用户选择 VASP 时存在。
+//      "Program": "Vasp" 或 "Custom"，表明用户选择的程序。
+//      "VaspVersion": "6.3.1"，表明用户选择的 VASP 版本。只当用户选择 VASP 时存在。
 //      "VaspVariant": "std" 或 "gam" 或 "ncl"，表明用户选择的 VASP 变体。只当用户选择 VASP 时存在。
 //      "Device": 用户选择的设备，与传入的参数对应。空 id 则对应空字符串。
-//      "LammpsScript": 表明用户选择的 LAMMPS 输入脚本。只当用户选择 LAMMPS 时存在。不为空字符串
-//          可能有空格之类等奇怪字符，随后使用 bash 调用时记得加单引号。
-//      "MpiThreads": 用户选择的 MPI 线程数，为正整数。只当用户选择 CPU 且选择 VASP 或 LAMMPS 时存在。
-//      "OpenmpThreads": 用户选择的 OpenMP 线程数，为正整数。只当用户选择 CPU 且选择 VASP 或 LAMMPS 时存在。
+//      "MpiThreads": 用户选择的 MPI 线程数，为正整数。只当用户选择 CPU 且选择 VASP 时存在。
+//      "OpenmpThreads": 用户选择的 OpenMP 线程数，为正整数。只当用户选择 CPU 且选择 VASP 时存在。
 //      "CustomCommand": 用户选择的自定义命令。只当用户选择自定义命令时存在。不为空字符串。
 //      "CustomCommandCores": 用户选择的自定义命令的 CPU 核心数，为正整数。只当用户选择自定义命令时存在。
 //  高级设置：
 //      "CustomPath": 存在这个键时，表示用户选择了自定义路径，这个键对应的值是用户输入的路径。不为空字符串。
-//      "CustomOpenmpThreads": 用户选择的 OpenMP 线程数，为正整数。只当用户选择 GPU 且选择 VASP 或 LAMMPS 时存在。
+//      "CustomOpenmpThreads": 用户选择的 OpenMP 线程数，为正整数。只当用户选择 GPU 且选择 VASP 时存在。
 //      "RunNow": 立即开始运行。
 {
     auto screen = ftxui::ScreenInteractive::Fullscreen();
 
     // 基本信息
-    std::vector<std::string> program_names {"VASP", "LAMMPS", "自定义程序"};
-    std::vector<std::string> program_internal_names {"Vasp", "Lammps", "Custom"};
+    std::vector<std::string> program_names {"VASP", "自定义程序"};
+    std::vector<std::string> program_internal_names {"Vasp", "Custom"};
     int program_selected = 0;
-    std::vector<std::string> vasp_version_names {"6.3.0", "6.3.1"};
+    std::vector<std::string> vasp_version_names {"6.3.1"};
     int vasp_version_selected = 0;
     std::vector<std::string> vasp_variant_names {"std", "gam", "ncl"};
     int vasp_variant_selected = 0;
@@ -76,7 +74,6 @@ std::map<std::string, std::string> request_new_job_detail_from_user
             device_running, device_pending
         ));
     int device_selected = 0;
-    std::string lammps_script_text = "in.lammps";
     std::string mpi_threads_text = "4";
     std::string openmp_threads_text = "4";
     std::string custom_command_text = "/bin/bash echo hello world";
@@ -109,11 +106,6 @@ std::map<std::string, std::string> request_new_job_detail_from_user
             // 其它一些信息
             ftxui::Container::Vertical
             ({
-                ftxui::Input(&lammps_script_text, "") | ftxui::underlined
-                    | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 15) | ftxui::Renderer([&](ftxui::Element inner)
-                        {return ftxui::hbox(ftxui::text("LAMMPS 输入脚本文件: "), inner);})
-                    | ftxui::flex_shrink
-                    | ftxui::Maybe([&]{return program_internal_names[program_selected] == "Lammps";}),
                 ftxui::Container::Vertical
                 ({
                     ftxui::Input(&mpi_threads_text, "") | ftxui::underlined
@@ -126,8 +118,7 @@ std::map<std::string, std::string> request_new_job_detail_from_user
                         | ftxui::flex_shrink
                 }) | ftxui::Maybe([&]
                 {
-                    return (program_internal_names[program_selected] == "Vasp"
-                        || program_internal_names[program_selected] == "Lammps")
+                    return program_internal_names[program_selected] == "Vasp"
                         && std::get<0>(devices[device_selected]) == std::nullopt;
                 }),
                 ftxui::Container::Vertical
@@ -162,8 +153,7 @@ std::map<std::string, std::string> request_new_job_detail_from_user
                     | ftxui::flex_shrink | ftxui::Maybe([&]{return custom_openmp_threads_checked;})
             }) | ftxui::Maybe([&]
             {
-                return (program_internal_names[program_selected] == "Vasp"
-                    || program_internal_names[program_selected] == "Lammps")
+                return program_internal_names[program_selected] == "Vasp"
                     && std::get<0>(devices[device_selected]) != std::nullopt;
             }),
             ftxui::Checkbox("立即开始运行", &run_now_checked),
