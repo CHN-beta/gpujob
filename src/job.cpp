@@ -60,19 +60,14 @@ std::map<std::string, std::string> request_new_job_detail_from_user
 {
     auto screen = ftxui::ScreenInteractive::Fullscreen();
 
+    // 基本信息
     std::vector<std::string> program_names {"VASP", "LAMMPS", "自定义程序"};
     std::vector<std::string> program_internal_names {"Vasp", "Lammps", "Custom"};
     int program_selected = 0;
-    auto program_dropdown = ftxui::Dropdown(&program_names, &program_selected);
-
     std::vector<std::string> vasp_version_names {"6.3.0", "6.3.1"};
-    int vasp_version_selected {0};
-    auto vasp_version_dropdown = ftxui::Dropdown(&vasp_version_names, &vasp_version_selected);
-
+    int vasp_version_selected = 0;
     std::vector<std::string> vasp_variant_names {"std", "gam", "ncl"};
     int vasp_variant_selected = 0;
-    auto vasp_variant_dropdown = ftxui::Dropdown(&vasp_variant_names, &vasp_variant_selected);
-
     std::vector<std::string> device_names;
     for (auto& [device_id, device_name, device_running, device_pending] : devices)
         device_names.push_back(fmt::format(
@@ -81,39 +76,18 @@ std::map<std::string, std::string> request_new_job_detail_from_user
             device_running, device_pending
         ));
     int device_selected = 0;
-    auto device_dropdown = ftxui::Dropdown(&device_names, &device_selected);
-
     std::string lammps_script_text = "in.lammps";
-    auto lammps_script_input = ftxui::Input(&lammps_script_text, "");
-
     std::string mpi_threads_text = "4";
-    auto mpi_threads_input = ftxui::Input(&mpi_threads_text, "");
-
     std::string openmp_threads_text = "4";
-    auto openmp_threads_input = ftxui::Input(&openmp_threads_text, "");
-
-    std::string custom_command_text;
-    auto custom_command_input = ftxui::Input(&custom_command_text, "");
-
+    std::string custom_command_text = "/bin/bash echo hello world";
     std::string custom_command_cores_text = "4";
-    auto custom_command_cores_input = ftxui::Input(&custom_command_cores_text, "");
 
+    // 高级设置
     bool custom_path_checked = false;
     std::string custom_path_text = "/home/username";
-    auto custom_path_checkbox = ftxui::Checkbox("自定义路径：", &custom_path_checked);
-    auto custom_path_input = ftxui::Input(&custom_path_text, "");
-        
-
     bool custom_openmp_threads_checked = false;
     std::string custom_openmp_threads_text = "2";
-    auto custom_openmp_threads_checkbox = ftxui::Checkbox("自定义 OpenMP 线程数：", &custom_openmp_threads_checked);
-    auto custom_openmp_threads_input = ftxui::Input(&custom_openmp_threads_text, "");
-
     bool run_now_checked = false;
-    auto run_now_checkbox = ftxui::Checkbox("立即开始运行", &run_now_checked);
-
-    auto submit_button = ftxui::Button("提交任务", screen.ExitLoopClosure());
-    auto quit_button = ftxui::Button("取消", screen.ExitLoopClosure());
 
     auto layout = ftxui::Container::Vertical
     ({
@@ -123,27 +97,30 @@ std::map<std::string, std::string> request_new_job_detail_from_user
             // 几个 Dropdown
             ftxui::Container::Horizontal
             ({
-                program_dropdown,
-                ftxui::Container::Horizontal({vasp_version_dropdown, vasp_variant_dropdown})
-                    | ftxui::Maybe([&]{return program_internal_names[program_selected] == "Vasp";}),
-                device_dropdown
+                ftxui::Dropdown(&program_names, &program_selected),
+                ftxui::Container::Horizontal
+                ({
+                    ftxui::Dropdown(&vasp_version_names, &vasp_version_selected),
+                    ftxui::Dropdown(&vasp_variant_names, &vasp_variant_selected)
+                }) | ftxui::Maybe([&]{return program_internal_names[program_selected] == "Vasp";}),
+                ftxui::Dropdown(&device_names, &device_selected)
             }),
             // 其它一些信息
             ftxui::Container::Vertical
             ({
-                lammps_script_input | ftxui::underlined | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 15) 
-                    | ftxui::Renderer([&](ftxui::Element inner)
+                ftxui::Input(&lammps_script_text, "") | ftxui::underlined
+                    | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 15) | ftxui::Renderer([&](ftxui::Element inner)
                         {return ftxui::hbox(ftxui::text("LAMMPS 输入脚本文件: "), inner);})
                     | ftxui::flex_shrink
                     | ftxui::Maybe([&]{return program_internal_names[program_selected] == "Lammps";}),
                 ftxui::Container::Vertical
                 ({
-                    mpi_threads_input | ftxui::underlined | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
-                        | ftxui::Renderer([&](ftxui::Element inner)
+                    ftxui::Input(&mpi_threads_text, "") | ftxui::underlined
+                        | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3) | ftxui::Renderer([&](ftxui::Element inner)
                             {return ftxui::hbox(ftxui::text("MPI 线程数: "), inner);})
                         | ftxui::flex_shrink,
-                    openmp_threads_input | ftxui::underlined | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
-                        | ftxui::Renderer([&](ftxui::Element inner)
+                    ftxui::Input(&openmp_threads_text, "") | ftxui::underlined
+                        | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3) | ftxui::Renderer([&](ftxui::Element inner)
                             {return ftxui::hbox(ftxui::text("OpenMP 线程数: "), inner);})
                         | ftxui::flex_shrink
                 }) | ftxui::Maybe([&]
@@ -154,12 +131,12 @@ std::map<std::string, std::string> request_new_job_detail_from_user
                 }),
                 ftxui::Container::Vertical
                 ({
-                    custom_command_input | ftxui::underlined | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
-                        | ftxui::Renderer([&](ftxui::Element inner)
+                    ftxui::Input(&custom_command_text, "") | ftxui::underlined
+                        | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30) | ftxui::Renderer([&](ftxui::Element inner)
                             {return ftxui::hbox(ftxui::text("自定义命令: "), inner);})
                         | ftxui::flex_shrink,
-                    custom_command_cores_input | ftxui::underlined | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
-                        | ftxui::Renderer([&](ftxui::Element inner)
+                    ftxui::Input(&custom_command_cores_text, "") | ftxui::underlined
+                        | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3) | ftxui::Renderer([&](ftxui::Element inner)
                             {return ftxui::hbox(ftxui::text("占用 CPU 核心数: "), inner);})
                         | ftxui::flex_shrink
                 }) | ftxui::Maybe([&]{return program_internal_names[program_selected] == "Custom";})
@@ -171,14 +148,16 @@ std::map<std::string, std::string> request_new_job_detail_from_user
         ({
             ftxui::Container::Horizontal
             ({
-                custom_path_checkbox,
-                custom_path_input | ftxui::underlined | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
+                ftxui::Checkbox("自定义路径：", &custom_path_checked),
+                ftxui::Input(&custom_path_text, "") | ftxui::underlined
+                    | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
                     | ftxui::flex_shrink | ftxui::Maybe([&]{return custom_path_checked;})
             }),
             ftxui::Container::Horizontal
             ({
-                custom_openmp_threads_checkbox,
-                custom_openmp_threads_input | ftxui::underlined | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
+                ftxui::Checkbox("自定义 OpenMP 线程数：", &custom_openmp_threads_checked),
+                ftxui::Input(&custom_openmp_threads_text, "") | ftxui::underlined
+                    | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
                     | ftxui::flex_shrink | ftxui::Maybe([&]{return custom_openmp_threads_checked;})
             }) | ftxui::Maybe([&]
             {
@@ -186,10 +165,10 @@ std::map<std::string, std::string> request_new_job_detail_from_user
                     || program_internal_names[program_selected] == "Lammps")
                     && std::get<0>(devices[device_selected]) != std::nullopt;
             }),
-            run_now_checkbox
+            ftxui::Checkbox("立即开始运行", &run_now_checked)
         }) | ftxui::Renderer([&](ftxui::Element inner)
                 {return ftxui::vbox(ftxui::text("高级设置") | ftxui::bgcolor(ftxui::Color::Blue), inner);}),
-        submit_button | ftxui::flex_shrink
+        ftxui::Button("提交任务", screen.ExitLoopClosure()) | ftxui::flex_shrink
     }) | ftxui::Renderer([&](ftxui::Element inner){return ftxui::window(ftxui::text("提交新任务"), inner);})
         | ftxui::flex_shrink;
     screen.Loop(layout);
