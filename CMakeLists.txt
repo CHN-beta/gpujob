@@ -11,8 +11,10 @@ get_property(ImportedTargets DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY IMPORTED_T
 message("Imported targets: ${ImportedTargets}")
 
 add_executable(job src/job.cpp)
+target_include_directories(job PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(job PRIVATE fmt::fmt ftxui::screen ftxui::dom ftxui::component Boost::headers)
 target_compile_features(job INTERFACE cxx_std_23)
 add_executable(jobd src/jobd.cpp)
+target_include_directories(jobd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(jobd PRIVATE fmt::fmt)
 target_compile_features(job INTERFACE cxx_std_23)
