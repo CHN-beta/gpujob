@@ -135,6 +135,10 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 		"尽管两种设置都占用了 16 个核心。";
 	std::string mpi_threads_help_text_lammps = "LAMMPS 通常只使用 MPI 层面的并行，即此处设置的值就是实际占用 CPU 的核心数。\n"
 		"如果你确实需要使用 OpenMP 层面的并行，可以在高级设置中勾选“使用 OpenMP 并行” 。";
+	std::string custom_command_help_text = "在这里输入自定义的命令。这里输入的内容会被导出为 GPUJOB_CUSTOM_COMMAND 环境变量，"
+		"并被 bash 解析执行（bash -c $GPUJOB_CUSTOM_COMMAND）。";
+	std::string custom_command_cores_help_text = "在这里输入要占用的 CPU 核心数。"
+		"这里输入的内容会被导出为 GPUJOB_CUSTOM_COMMAND_CORES 环境变量，但队列系统实际不会限制资源的使用。";
 
 	std::string custom_openmp_threads_help_text_lammps = "我会导出 OMP_NUM_THREADS 环境变量，但不会在命令行中增加“-sf omp”，"
 		"你需要在输入文件中特定 pair_style 命令中加上“/omp”。";
@@ -281,12 +285,16 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
 							| ftxui::Renderer([&](ftxui::Element inner)
 								{return ftxui::hbox(ftxui::text("自定义命令: "), inner);})
-							| ftxui::flex_shrink,
+							| ftxui::flex_shrink
+							| ftxui::Hoverable(set_help_text(std::experimental::make_observer
+								(&custom_command_help_text))),
 						ftxui::Input(&custom_command_cores_text, "") | ftxui::underlined
 							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
 							| ftxui::Renderer([&](ftxui::Element inner)
 								{return ftxui::hbox(ftxui::text("占用 CPU 核心数: "), inner);})
 							| ftxui::flex_shrink
+							| ftxui::Hoverable(set_help_text(std::experimental::make_observer
+								(&custom_command_cores_help_text)))
 					}) | ftxui::Maybe([&]{return program_internal_names[program_selected] == "custom";})
 				})
 			}) | ftxui::Renderer([&](ftxui::Element inner)
