@@ -119,7 +119,8 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 		"如果是新的项目，建议用最新的版本；如果是继续之前的项目，之前用什么版本现在还用什么就可以了。";
 	std::string vasp_variant_help_text = "选择你要运行的 VASP 版本。通常使用 std 即可。\n当 k 点只有 gamma 点时，使用 gam 计算更快。"
 		"ncl 我没有用过，似乎与自旋-轨道耦合有关。";
-	std::string gpu_device_use_help_text_vasp = "是否使用 GPU 版本的 VASP。";
+	std::string gpu_device_use_help_text_vasp = "是否使用 GPU 版本的 VASP。"
+		"对于 VASP，不推荐使用多个 GPU，你会发现速度反而变慢；但选了多个 GPU 也不会出错。";
 	std::string gpu_device_use_help_text_lammps = "是否使用 GPU 加速 LAMMPS 的运行。"
 		"一般勾选此项和下面的一个或多个 GPU，即可要求 LAMMPS 使用 GPU。\n"
 		"队列系统会在命令行中追加“-sf gpu -pk gpu n”来要求 LAMMPS 使用 GPU。"
@@ -128,9 +129,6 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 	std::string gpu_device_use_help_text_custom = "是否使用 GPU 加速自定义程序的运行。\n"
 		"勾选后，队列系统会导出环境变量 GPUJOB_USE_GPU=1 和 CUDA_DEVICE_ORDER=PCI_BUS_ID，"
 		"以及 CUDA_VISIBLE_DEVICES（其值为逗号分隔的 id，详细见嘤伟达的文档）。即使不勾选，队列系统也不会真的限制程序对 GPU 的访问。";
-	std::string gpu_device_help_text = "选择你要使用的 GPU 设备。";
-	std::string gpu_device_help_text_vasp = gpu_device_help_text
-		+ "不推荐使用多个 GPU，你会发现速度反而变慢；但选了多个 GPU 也不会出错。";
 	std::string mpi_openmp_threads_help_text_vasp_cpu = "VASP 支持两个层面的并行，一个叫 MPI，一个叫 OpenMP，"
 		"实际占用 CPU 的核心数等于 MPI 线程数乘以 OpenMP 线程数。将两者取为相近的数值，性能更好。"
 		"例如，将 MPI 线程数和 OpenMP 线程数都设置为 4，性能比 MPI 线程数取为 16、OpenMP 线程数取为 1 的性能要好，"
