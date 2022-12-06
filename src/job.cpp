@@ -139,6 +139,7 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 		"并被 bash 解析执行（bash -c $GPUJOB_CUSTOM_COMMAND）。";
 	std::string custom_command_cores_help_text = "在这里输入要占用的 CPU 核心数。"
 		"这里输入的内容会被导出为 GPUJOB_CUSTOM_COMMAND_CORES 环境变量，但队列系统实际不会限制资源的使用。";
+	std::string custom_path_help_text = "自定义程序运行的起始目录。默认为当前目录。";
 
 	std::string custom_openmp_threads_help_text_lammps = "我会导出 OMP_NUM_THREADS 环境变量，但不会在命令行中增加“-sf omp”，"
 		"你需要在输入文件中特定 pair_style 命令中加上“/omp”。";
@@ -307,8 +308,10 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 					ftxui::Checkbox("自定义路径：", &custom_path_checked),
 					ftxui::Input(&custom_path_text, "") | ftxui::underlined
 						| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
-						| ftxui::flex_shrink | ftxui::Maybe([&]{return custom_path_checked;})
-				}),
+						| ftxui::flex_shrink
+						| ftxui::Maybe([&]{return custom_path_checked;})
+				}) | ftxui::Hoverable(set_help_text(std::experimental::make_observer(&custom_path_help_text)))
+					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());}),
 				ftxui::Container::Horizontal
 				({
 					ftxui::Checkbox("自定义 OpenMP 线程数：", &custom_openmp_threads_checked),
