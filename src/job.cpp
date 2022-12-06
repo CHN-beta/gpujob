@@ -148,6 +148,8 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 		"因此如果没有特殊需求, 不要修改默认值.";
 	std::string run_now_help_text = "不排队, 立即开始运行. "
 		"有时前面有一些比较大的任务, 而这个任务很小, 你就可以勾选此选项, 让它立即开始运行, 不用一直干等着.";
+	std::string run_in_container_help_text = "在 ububtu-22.04 容器中运行自定义程序. VASP 的 GPU 版本需要在容器里运行. "
+		"/home 在容器中会被挂载为 /hosthome.";
 	auto set_help_text = [&](std::experimental::observer_ptr<const std::string> content)
 	{
 		static std::map<std::experimental::observer_ptr<const std::string>, unsigned> enabled_help;
@@ -339,6 +341,8 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 					| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&run_now_help_text)))
 					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());}),
 				ftxui::Checkbox("在 Ubuntu 22.04 容器中运行", &run_in_container_checked)
+					| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&run_in_container_help_text)))
+					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
 					| ftxui::Maybe([&]{return program_internal_names[program_selected] == "custom";})
 			}) | ftxui::Renderer([&](ftxui::Element inner)
 					{return ftxui::vbox(ftxui::text("高级设置") | ftxui::bgcolor(ftxui::Color::Blue), inner);}),
@@ -356,7 +360,13 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 			ftxui::filler(), ftxui::text("Code by CHN with "),
 			ftxui::text("❤️") | ftxui::color(ftxui::Color::Red),
 			ftxui::text(" love.")
-		) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 1));});
+		) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 1));})
+		| ftxui::CatchEvent([&](ftxui::Event event)
+		{
+			if (event == ftxui::Event::Return)
+				screen.ExitLoopClosure()();
+			return event == ftxui::Event::Return;
+		});
     screen.Loop(layout);
     return {};
 }
