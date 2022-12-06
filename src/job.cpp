@@ -287,7 +287,7 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 							| ftxui::Renderer([&](ftxui::Element inner)
 								{return ftxui::hbox(ftxui::text("占用 CPU 核心数: "), inner);})
 							| ftxui::flex_shrink
-					}) | ftxui::Maybe([&]{return program_internal_names[program_selected] == "Custom";})
+					}) | ftxui::Maybe([&]{return program_internal_names[program_selected] == "custom";})
 				})
 			}) | ftxui::Renderer([&](ftxui::Element inner)
 				{return ftxui::vbox(ftxui::text("基本信息") | ftxui::bgcolor(ftxui::Color::Blue), inner);}),
