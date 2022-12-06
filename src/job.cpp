@@ -146,6 +146,8 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 		"GPU 版本的 VASP 要求每个 MPI 线程对应一个 GPU, 因此实际占用 CPU 的核心数等于此处设置的 OpenMP 线程数乘以选定的 GPU 个数. "
 		"尽管原则上没有限制, 但实际中我发现 OpenMP 线程数取为 2 时性能比 1 略好, 取为 3 或以上时则会慢得多. "
 		"因此如果没有特殊需求, 不要修改默认值.";
+	std::string run_now_help_text = "不排队, 立即开始运行. "
+		"有时前面有一些比较大的任务, 而这个任务很小, 你就可以勾选此选项, 让它立即开始运行, 不用一直干等着.";
 	auto set_help_text = [&](std::experimental::observer_ptr<const std::string> content)
 	{
 		static std::map<std::experimental::observer_ptr<const std::string>, unsigned> enabled_help;
@@ -333,7 +335,9 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 						return (program_internal_names[program_selected] == "vasp" && gpu_device_use_checked)
 							|| program_internal_names[program_selected] == "lammps";
 					}),
-				ftxui::Checkbox("立即开始运行", &run_now_checked),
+				ftxui::Checkbox("立即开始运行", &run_now_checked)
+					| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&run_now_help_text)))
+					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());}),
 				ftxui::Checkbox("在 Ubuntu 22.04 容器中运行", &run_in_container_checked)
 					| ftxui::Maybe([&]{return program_internal_names[program_selected] == "custom";})
 			}) | ftxui::Renderer([&](ftxui::Element inner)
