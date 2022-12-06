@@ -140,11 +140,10 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 	std::string custom_command_cores_help_text = "在这里输入要占用的 CPU 核心数。"
 		"这里输入的内容会被导出为 GPUJOB_CUSTOM_COMMAND_CORES 环境变量，但队列系统实际不会限制资源的使用。";
 	std::string custom_path_help_text = "自定义程序运行的起始目录。默认为当前目录。";
-
 	std::string custom_openmp_threads_help_text_lammps = "我会导出 OMP_NUM_THREADS 环境变量，但不会在命令行中增加“-sf omp”，"
 		"你需要在输入文件中特定 pair_style 命令中加上“/omp”。";
 	std::string custom_openmp_threads_help_text_vasp_gpu = "VASP 支持两个层面的并行，一个叫 MPI，一个叫 OpenMP。"
-		"GPU 版本的 VASP 要求每个 MPI 线程对应一个 GPU，因此实际占用 CPU 的核心数等于此处设置的 OpenMP 线程数乘以选定的 GPU 个数。"
+		"GPU 版本的 VASP 要求每个 MPI 线程对应一个 GPU，因此实际占用 CPU 的核心数等于此处设置的 OpenMP 线程数乘以选定的 GPU 个数。\n"
 		"尽管原则上没有限制，但实际中我发现 OpenMP 线程数取为 2 时性能比 1 略好，取为 3 或以上时则会慢得多。"
 		"因此如果没有特殊需求，不要修改默认值。";
 	auto set_help_text = [&](std::experimental::observer_ptr<const std::string> content)
@@ -318,11 +317,22 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 					ftxui::Input(&custom_openmp_threads_text, "") | ftxui::underlined
 						| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
 						| ftxui::flex_shrink | ftxui::Maybe([&]{return custom_openmp_threads_checked;})
-				}) | ftxui::Maybe([&]
+				}) | ftxui::Hoverable([&](bool set_or_unset)
 				{
-					return (program_internal_names[program_selected] == "vasp" && gpu_device_use_checked)
-						|| program_internal_names[program_selected] == "lammps";
-				}),
+					if (program_internal_names[program_selected] == "vasp" && gpu_device_use_checked)
+						set_help_text(std::experimental::make_observer(&custom_openmp_threads_help_text_vasp_gpu))
+							(set_or_unset);
+					else if (program_internal_names[program_selected] == "lammps")
+						set_help_text(std::experimental::make_observer(&custom_openmp_threads_help_text_lammps))
+							(set_or_unset);
+					else
+						std::unreachable();
+				}) | ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
+					| ftxui::Maybe([&]
+					{
+						return (program_internal_names[program_selected] == "vasp" && gpu_device_use_checked)
+							|| program_internal_names[program_selected] == "lammps";
+					}),
 				ftxui::Checkbox("立即开始运行", &run_now_checked),
 				ftxui::Checkbox("在 Ubuntu 22.04 容器中运行", &run_in_container_checked)
 					| ftxui::Maybe([&]{return program_internal_names[program_selected] == "custom";})
