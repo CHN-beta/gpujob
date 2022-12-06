@@ -7,6 +7,7 @@
 # include <variant>
 # include <fstream>
 # include <utility>
+# include <experimental/memory>
 # include <ftxui/dom/elements.hpp>
 # include <ftxui/component/component.hpp>
 # include <ftxui/component/screen_interactive.hpp>
@@ -114,17 +115,17 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 	std::string original_help_text = "拿起鼠标，哪里需要点哪里。这里会给出提示信息。";
 	std::string help_text = original_help_text;
 	std::string program_help_text = "选择你要运行的程序。";
-	std::string vasp_version_help_text = "选择你要运行的 VASP 版本。"
+	std::string vasp_version_help_text = "选择你要运行的 VASP 版本。\n"
 		"如果是新的项目，建议用最新的版本；如果是继续之前的项目，之前用什么版本现在还用什么就可以了。";
-	std::string vasp_variant_help_text = "选择你要运行的 VASP 版本。通常使用 std 即可。当 k 点只有 gamma 点时，使用 gam 计算更快。"
+	std::string vasp_variant_help_text = "选择你要运行的 VASP 版本。通常使用 std 即可。\n当 k 点只有 gamma 点时，使用 gam 计算更快。"
 		"ncl 我没有用过，似乎与自旋-轨道耦合有关。";
 	std::string gpu_device_use_help_text_vasp = "是否使用 GPU 版本的 VASP。";
 	std::string gpu_device_use_help_text_lammps = "是否使用 GPU 加速 LAMMPS 的运行。"
+		"一般勾选此项和下面的一个或多个 GPU，即可要求 LAMMPS 使用 GPU。\n"
 		"队列系统会在命令行中追加“-sf gpu -pk gpu n”来要求 LAMMPS 使用 GPU。"
-		"一般勾选此项和下面的一个或多个 GPU，即可要求 LAMMPS 使用 GPU。"
 		"如果你希望手动指定哪些 pair_style 使用 GPU 而哪些不使用，可以在高级设置中勾选“不在命令行中增加‘-sf gpu’”，"
 		"然后手动在输入文件中的一部分 pair_style 命令中加上“/gpu”。";
-	std::string gpu_device_use_help_text_custom = "是否使用 GPU 加速自定义程序的运行。"
+	std::string gpu_device_use_help_text_custom = "是否使用 GPU 加速自定义程序的运行。\n"
 		"勾选后，队列系统会导出环境变量 GPUJOB_USE_GPU=1 和 CUDA_DEVICE_ORDER=PCI_BUS_ID，"
 		"以及 CUDA_VISIBLE_DEVICES（其值为逗号分隔的 id，详细见嘤伟达的文档）。即使不勾选，队列系统也不会真的限制程序对 GPU 的访问。";
 	std::string gpu_device_help_text = "选择你要使用的 GPU 设备。";
@@ -134,23 +135,44 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 		"实际占用 CPU 的核心数等于 MPI 线程数乘以 OpenMP 线程数。将两者取为相近的数值，性能更好。"
 		"例如，将 MPI 线程数和 OpenMP 线程数都设置为 4，性能比 MPI 线程数取为 16、OpenMP 线程数取为 1 的性能要好，"
 		"尽管两种设置都占用了 16 个核心。";
-	std::string openmp_threads_help_text_vasp_gpu = "VASP 支持两个层面的并行，一个叫 MPI，一个叫 OpenMP，"
-		"实际占用 CPU 的核心数等于 MPI 线程数乘以 OpenMP 线程数。"
-		"GPU 版本的 VASP 要求每个 MPI 线程对应一个 GPU，因此实际占用 CPU 的核心数等于此处设置的 OpenMP 线程数乘以选定的 GPU 个数。"
-		"尽管原则上没有限制，但实际中我发现 OpenMP 线程数取为 2 时性能比 1 略好，取为 3 或以上时会慢得多。"
-		"因此如果没有特殊需求，不建议修改默认值。";
-	std::string mpi_threads_help_text_lammps = "LAMMPS 通常只使用 MPI 层面的并行，即此处设置的值就是实际占用 CPU 的核心数。"
+	std::string mpi_threads_help_text_lammps = "LAMMPS 通常只使用 MPI 层面的并行，即此处设置的值就是实际占用 CPU 的核心数。\n"
 		"如果你确实需要使用 OpenMP 层面的并行，可以在高级设置中勾选“使用 OpenMP 并行” 。";
-	std::string openmp_threads_help_text_lammps = "我会导出 OMP_NUM_THREADS 环境变量，但不会在命令行中增加“-sf omp”，"
+
+	std::string custom_openmp_threads_help_text_lammps = "我会导出 OMP_NUM_THREADS 环境变量，但不会在命令行中增加“-sf omp”，"
 		"你需要在输入文件中特定 pair_style 命令中加上“/omp”。";
-	auto set_help_text = [&](std::string content)
+	std::string custom_openmp_threads_help_text_vasp_gpu = "VASP 支持两个层面的并行，一个叫 MPI，一个叫 OpenMP。"
+		"GPU 版本的 VASP 要求每个 MPI 线程对应一个 GPU，因此实际占用 CPU 的核心数等于此处设置的 OpenMP 线程数乘以选定的 GPU 个数。"
+		"尽管原则上没有限制，但实际中我发现 OpenMP 线程数取为 2 时性能比 1 略好，取为 3 或以上时则会慢得多。"
+		"因此如果没有特殊需求，不要修改默认值。";
+	auto set_help_text = [&](std::experimental::observer_ptr<const std::string> content)
 	{
+		static std::map<std::experimental::observer_ptr<const std::string>, unsigned> enabled_help;
 		return [&, content](bool set_or_unset)
 		{
 			if (set_or_unset)
-				help_text = content;
-			else if (help_text == content)
-				help_text = original_help_text;
+			{
+				if (enabled_help.contains(content))
+					enabled_help[content]++;
+				else
+				{
+					enabled_help[content] = 1;
+					help_text = *content;
+				}
+			}
+			else if (enabled_help.contains(content))
+			{
+				enabled_help[content]--;
+				if (enabled_help[content] == 0)
+				{
+					enabled_help.erase(content);
+					if (enabled_help.empty())
+						help_text = original_help_text;
+					else
+						help_text = *enabled_help.begin()->first;
+				}
+			}
+			else
+				std::unreachable();
 		};
 	};
 
@@ -168,13 +190,14 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 				ftxui::Container::Horizontal
 				({
 					ftxui::Dropdown(&program_names, &program_selected)
-						| ftxui::Hoverable(set_help_text(program_help_text)),
+						| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&program_help_text))),
 					ftxui::Container::Horizontal
 					({
 						ftxui::Dropdown(&vasp_version_names, &vasp_version_selected)
-							| ftxui::Hoverable(set_help_text(vasp_version_help_text)),
+							| ftxui::Hoverable(set_help_text
+								(std::experimental::make_observer(&vasp_version_help_text))),
 						ftxui::Dropdown(&vasp_variant_names, &vasp_variant_selected)
-							| ftxui::Hoverable(set_help_text(vasp_variant_help_text))
+							| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&vasp_variant_help_text)))
 					}) | ftxui::Maybe([&]{return program_internal_names[program_selected] == "vasp";})
 				}),
 				// GPU 加速
@@ -183,11 +206,14 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 					ftxui::Checkbox("使用 GPU 加速", &gpu_device_use_checked) | ftxui::Hoverable([&](bool set_or_unset)
 					{
 						if (program_internal_names[program_selected] == "vasp")
-							set_help_text(gpu_device_use_help_text_vasp)(set_or_unset);
+							set_help_text(std::experimental::make_observer(&gpu_device_use_help_text_vasp))
+								(set_or_unset);
 						else if (program_internal_names[program_selected] == "lammps")
-							set_help_text(gpu_device_use_help_text_lammps)(set_or_unset);
+							set_help_text(std::experimental::make_observer(&gpu_device_use_help_text_lammps))
+								(set_or_unset);
 						else if (program_internal_names[program_selected] == "custom")
-							set_help_text(gpu_device_use_help_text_custom)(set_or_unset);
+							set_help_text(std::experimental::make_observer(&gpu_device_use_help_text_custom))
+								(set_or_unset);
 						else
 							std::unreachable();
 					}) | ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());}),
@@ -195,8 +221,23 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 					{
 						auto gpus = ftxui::Container::Vertical({});
 						for (auto& [name, checked] : gpu_device_checked)
-							gpus->Add(ftxui::Checkbox(name, &checked) | ftxui::Renderer([&](ftxui::Element inner)
-								{return ftxui::hbox(ftxui::text("  "), inner);}));
+							gpus->Add(ftxui::Checkbox(name, &checked)
+								| ftxui::Renderer([&](ftxui::Element inner)
+									{return ftxui::hbox(ftxui::text("  "), inner);})
+								| ftxui::Hoverable([&](bool set_or_unset)
+								{
+									if (program_internal_names[program_selected] == "vasp")
+										set_help_text(std::experimental::make_observer(&gpu_device_use_help_text_vasp))
+											(set_or_unset);
+									else if (program_internal_names[program_selected] == "lammps")
+										set_help_text(std::experimental::make_observer
+											(&gpu_device_use_help_text_lammps))(set_or_unset);
+									else if (program_internal_names[program_selected] == "custom")
+										set_help_text(std::experimental::make_observer
+											(&gpu_device_use_help_text_custom))(set_or_unset);
+									else
+										std::unreachable();
+								}));
 						return gpus;
 					}() | ftxui::Maybe(&gpu_device_use_checked)
 				}),
@@ -206,27 +247,46 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 					ftxui::Container::Vertical
 					({
 						ftxui::Input(&mpi_threads_text, "") | ftxui::underlined
-							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3) | ftxui::Renderer([&](ftxui::Element inner)
+							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
+							| ftxui::Renderer([&](ftxui::Element inner)
 								{return ftxui::hbox(ftxui::text("MPI 线程数: "), inner);})
-							| ftxui::flex_shrink | ftxui::Maybe([&]
+							| ftxui::Hoverable([&](bool set_or_unset)
+							{
+								if (program_internal_names[program_selected] == "vasp" && !gpu_device_use_checked)
+									set_help_text(std::experimental::make_observer
+										(&mpi_openmp_threads_help_text_vasp_cpu))(set_or_unset);
+								else if (program_internal_names[program_selected] == "lammps")
+									set_help_text(std::experimental::make_observer(&mpi_threads_help_text_lammps))
+										(set_or_unset);
+								else
+									std::unreachable();
+							})
+							| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
+							| ftxui::Maybe([&]
 							{
 								return (program_internal_names[program_selected] == "vasp" && !gpu_device_use_checked)
 									|| program_internal_names[program_selected] == "lammps";
 							}),
 						ftxui::Input(&openmp_threads_text, "") | ftxui::underlined
-							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3) | ftxui::Renderer([&](ftxui::Element inner)
+							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
+							| ftxui::Renderer([&](ftxui::Element inner)
 								{return ftxui::hbox(ftxui::text("OpenMP 线程数: "), inner);})
-							| ftxui::flex_shrink | ftxui::Maybe([&]
+							| ftxui::Hoverable(set_help_text(std::experimental::make_observer
+								(&mpi_openmp_threads_help_text_vasp_cpu)))
+							| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
+							| ftxui::Maybe([&]
 								{return program_internal_names[program_selected] == "vasp" && !gpu_device_use_checked;})
 					}),
 					ftxui::Container::Vertical
 					({
 						ftxui::Input(&custom_command_text, "") | ftxui::underlined
-							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30) | ftxui::Renderer([&](ftxui::Element inner)
+							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
+							| ftxui::Renderer([&](ftxui::Element inner)
 								{return ftxui::hbox(ftxui::text("自定义命令: "), inner);})
 							| ftxui::flex_shrink,
 						ftxui::Input(&custom_command_cores_text, "") | ftxui::underlined
-							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3) | ftxui::Renderer([&](ftxui::Element inner)
+							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
+							| ftxui::Renderer([&](ftxui::Element inner)
 								{return ftxui::hbox(ftxui::text("占用 CPU 核心数: "), inner);})
 							| ftxui::flex_shrink
 					}) | ftxui::Maybe([&]{return program_internal_names[program_selected] == "Custom";})
