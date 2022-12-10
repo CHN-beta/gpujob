@@ -21,19 +21,23 @@
 
 struct Job_t
 // 用来描述一个任务的相关信息
+// Program 通常为 bash 而不是 vasp 或 lammps 等, 这是为了方便设置环境
+// 不再另外写脚本来设置环境, 而是直接在这里设置
+// 考虑到特殊字符的问题, 涉及到用户输入的字符串参数, 都用环境变量传入而不是直接传入
 {
 	unsigned Id;
-	std::string User, Command, Comment;
+	std::string User, Program, Comment;
+	std::map<std::string, std::string> Environment;
+	std::vector<std::string> Arguments;
 	unsigned UsingCores;
 	std::vector<unsigned> UsingGpus;
-	std::map<std::string, std::string> Environment;
 	enum class Status_t {Pending, Running, Finished} Status;
 	bool RunInContainer;
 	bool RunNow;
 
 	template <class Archive> void serialize(Archive & ar)
 	{
-		ar(Id, User, Command, Comment, UsingCores, UsingGpus, Environment, Status, RunInContainer, RunNow);
+		ar(Id, User, Program, Comment, Environment, Arguments, UsingCores, UsingGpus, Status, RunInContainer, RunNow);
 	}
 };
 

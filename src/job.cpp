@@ -15,6 +15,7 @@
 # include <ftxui/screen/screen.hpp>
 # include <ftxui/screen/string.hpp>
 # include <boost/interprocess/sync/file_lock.hpp>
+# include <boost/process.hpp>
 # include <fmt/format.h>
 # include <cereal/archives/json.hpp>
 # include <job.hpp>
@@ -51,19 +52,6 @@ std::map<unsigned, std::string> detect_gpu_devices()
 	return devices;
 }
 
-inline std::vector<job> read_output_files()
-// 读取来自 jobd 的输出文件
-{
-	boost::interprocess::file_lock out_lock{"/tmp/gpujob/out.lock"};
-	out_lock.lock();
-	std::vector<job> jobs;
-	{
-		std::ifstream in{"/tmp/gpujob/out.dat"};
-		cereal::JSONInputArchive{in}(jobs);
-	}
-	return jobs;
-}
-
 std::optional<std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsigned>>>>
 	request_new_job_detail_from_user(std::vector<std::tuple<unsigned, std::string, unsigned, unsigned>> gpu_devices)
 // 展示提交任务的界面, 并等待用户输入、确认. 所有参数使用字符串传回. 保证传回的结果已经被检查过, 不需要再次检查.
@@ -83,6 +71,9 @@ std::optional<std::map<std::string, std::variant<std::string, unsigned, bool, st
 
 // Todo: Path 说明在容器中运行时，会被修改到特定路径下
 // todo: 自定义任务说明
+// todo: 自定义环境变量
+// todo: 自定义 lammps 输入文件名
+// todo: 自定义 lammps sf gpu 开关
 {
     auto screen = ftxui::ScreenInteractive::Fullscreen();
 
@@ -140,7 +131,7 @@ std::optional<std::map<std::string, std::variant<std::string, unsigned, bool, st
 	std::string custom_command_help_text = "在这里输入自定义的命令. 这里输入的内容会被导出为 GPUJOB_CUSTOM_COMMAND 环境变量, "
 		"并被 bash 解析执行（bash -c $GPUJOB_CUSTOM_COMMAND）.";
 	std::string custom_command_cores_help_text = "在这里输入要占用的 CPU 核心数. "
-		"这里输入的内容会被导出为 GPUJOB_CUSTOM_COMMAND_CORES 环境变量, 但队列系统实际不会限制资源的使用.";
+		"这里输入的内容会被导出为 GPUJOB_CUSTOM_COMMAND_CORES 环境变量, 并据此排队; 但队列系统实际不会限制资源的使用.";
 	std::string custom_path_help_text = "自定义程序运行的起始目录. 默认为当前目录.";
 	std::string custom_openmp_threads_help_text_lammps = "我会导出 OMP_NUM_THREADS 环境变量, "
 		"但不会在命令行中增加 \"-sf omp\", 你需要在输入文件中特定 pair_style 命令中加上 \"/omp\".";
