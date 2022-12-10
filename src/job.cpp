@@ -74,13 +74,16 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 // 	"Program": 字符串值, "vasp" 或 "lammps" 或 "custom", 表明用户选择的程序.
 // 	"VaspVersion": 字符串值, "620-vtst" 或 "631", 表明用户选择的 VASP 版本. 只当 "Program" 为 "vasp" 时存在.
 // 	"VaspVariant": 字符串值, "std" 或 "gam" 或 "ncl", 表明用户选择的 VASP 变体. 只当 "Program" 为 "vasp" 时存在.
-// 	"GpuDevice": 数组, 用户选择的 GPU 设备的 id, 与传入的参数对应.
+// 	"GpuDevices": 数组, 用户选择的 GPU 设备的 id, 与传入的参数对应.
 // 	"MpiThreads": 正整数, 用户选择的 MPI 线程数. 只当 "Program" 为 "vasp" 或 "lammps" 时存在.
 // 	"OpenmpThreads": 正整数, 用户选择的 OpenMP 线程数. 只当 "Program" 为 "vasp" 或 "lammps" 时存在.
 // 	"CustomCommand": 字符串值, 用户输入的自定义命令. 只当 "Program" 为 "custom" 时存在.
 // 	"CustomCommandCores": 正整数, 用户选择的自定义命令的 CPU 核心数. 只当 "Program" 为 "custom" 时存在.
 // 	"Path": 字符串值, 表示运行的路径.
 // 	"RunNow": 布尔值, 表示不排队、立即开始运行.
+//  "RunInContainer": 布尔值, 在 ubuntu-22.04 容器中运行.
+
+// Todo: Path 说明在容器中运行时，会被修改到特定路径下
 {
     auto screen = ftxui::ScreenInteractive::Fullscreen();
 
@@ -89,11 +92,11 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 	std::vector<std::string> program_internal_names {"vasp", "lammps", "custom"};
 	int program_selected = 0;
 	std::vector<std::string> vasp_version_names {"6.3.1"};
+	std::vector<std::string> vasp_version_internal_names {"631"};
 	int vasp_version_selected = 0;
 	std::vector<std::string> vasp_variant_names {"std", "gam", "ncl"};
 	int vasp_variant_selected = 0;
 	bool gpu_device_use_checked = false;
-
 	std::vector<std::pair<std::string, bool>> gpu_device_checked;
 	for (auto& [device_id, device_name, device_running, device_pending] : gpu_devices)
 		gpu_device_checked.emplace_back(fmt::format("{} (ID: {}, {} 运行, {} 等待)",
@@ -181,6 +184,145 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 				std::unreachable();
 		};
 	};
+
+	// 提交任务按钮相关
+	std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsigned>>> result;
+	bool show_error_dialog = false;
+	std::string error_dialog_text;
+	auto try_submit = [&] -> bool
+	{
+		auto try_to_convert_to_positive_integer = [](const std::string& str) -> std::optional<unsigned>
+		{
+			unsigned result;
+			try
+			{
+				result = std::stoi(str);
+			}
+			catch (const std::invalid_argument&)
+			{
+				return std::nullopt;
+			}
+			if (result > 0)
+				return result;
+			else
+				return std::nullopt;
+		};
+		auto check_and_set_result = [&] -> std::optional<std::string>
+		{
+			result["Program"] = program_internal_names[program_selected];
+			if (program_internal_names[program_selected] == "vasp")
+			{
+				result["VaspVersion"] = vasp_version_internal_names[vasp_version_selected];
+				result["VaspVariant"] = vasp_variant_names[vasp_variant_selected];
+			}
+			if (gpu_device_use_checked)
+			{
+				std::vector<unsigned> gpu_devices;
+				for (unsigned i = 0; i < gpu_device_checked.size(); i++)
+					if (gpu_device_checked[i].second)
+						gpu_devices.emplace_back(i);
+				if (gpu_devices.empty())
+					return "请至少选择一个 GPU 设备.";
+				result["GpuDevices"] = gpu_devices;
+			}
+			if (program_internal_names[program_selected] == "vasp")
+			{
+				if (gpu_device_use_checked)
+				{
+					result["MpiThreads"]
+						= static_cast<unsigned>(std::get<std::vector<unsigned>>(result["GpuDevices"]).size());
+					if (custom_openmp_threads_checked)
+					{
+						if
+						(
+							auto omp_threads = try_to_convert_to_positive_integer(custom_openmp_threads_text);
+							omp_threads
+						)
+							result["OpenmpThreads"] = *omp_threads;
+						else
+							return "OpenMP 线程数必须为正整数.";
+					}
+					else
+						result["OpenmpThreads"] = 2u;
+				}
+				else
+				{
+					if (auto mpi_threads = try_to_convert_to_positive_integer(mpi_threads_text); mpi_threads)
+						result["MpiThreads"] = *mpi_threads;
+					else
+						return "MPI 线程数必须为正整数.";
+					if (auto omp_threads = try_to_convert_to_positive_integer(openmp_threads_text); omp_threads)
+						result["OpenmpThreads"] = *omp_threads;
+					else
+						return "OpenMP 线程数必须为正整数.";
+				}
+			}
+			else if (program_internal_names[program_selected] == "lammps")
+			{
+				if (auto mpi_threads = try_to_convert_to_positive_integer(mpi_threads_text); mpi_threads)
+					result["MpiThreads"] = *mpi_threads;
+				else
+					return "MPI 线程数必须为正整数.";
+				if (custom_openmp_threads_checked)
+				{
+					if
+					(
+						auto omp_threads = try_to_convert_to_positive_integer(custom_openmp_threads_text);
+						omp_threads
+					)
+						result["OpenmpThreads"] = *omp_threads;
+					else
+						return "OpenMP 线程数必须为正整数.";
+				}
+				else
+					result["OpenmpThreads"] = 1u;
+			}
+			else if (program_internal_names[program_selected] == "custom")
+			{
+				if (custom_command_text == "")
+					return "自定义命令不能为空.";
+				result["CustomCommand"] = custom_command_text;
+				if
+				(
+					auto custom_command_cores = try_to_convert_to_positive_integer(custom_command_cores_text);
+					custom_command_cores
+				)
+					result["CustomCommandCores"] = *custom_command_cores;
+				else
+					return "占用的 CPU 核心数必须为正整数.";
+			}
+			else
+				std::unreachable();
+			if (custom_path_checked)
+			{
+				if (custom_path_text == "")
+					return "自定义路径不能为空.";
+				result["Path"] = custom_path_text;
+			}
+			else if (program_internal_names[program_selected] == "vasp" && gpu_device_use_checked)
+			{
+				if
+				(
+					auto [path, match] = std::tuple{std::filesystem::current_path().string(), std::smatch{}};
+					std::regex_match(path, match, std::regex("^/home(/.*)?$"))
+				)
+					result["Path"] = "/hosthome" + match[1].str();
+				else
+					return "VASP GPU 版本必须在 ubuntu-22.04 容器中运行, 容器中无法访问宿主机中除了 /home 以外的目录.";
+			}
+			else
+				result["Path"] = std::filesystem::current_path().string();
+			result["RunNow"] = run_now_checked;
+			if (program_internal_names[program_selected] == "vasp" && gpu_device_use_checked)
+				result["RunInContainer"] = true;
+			else if (program_internal_names[program_selected] == "custom")
+				result["RunInContainer"] = run_in_container_checked;
+			else
+				result["RunInContainer"] = false;
+		};
+		return true;
+	};
+	auto submit_button = ftxui::Button("提交任务 (Enter)", screen.ExitLoopClosure());
 
 	bool canceled = false;
 
@@ -349,7 +491,7 @@ std::map<std::string, std::variant<std::string, unsigned, bool, std::vector<unsi
 			// "几个按钮"
 			ftxui::Container::Horizontal
 			({
-				ftxui::Button("提交任务(Enter)", screen.ExitLoopClosure()),
+				submit_button,
 				ftxui::Button("取消", [&]{canceled = true; screen.ExitLoopClosure()();})
 			})
 				| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
