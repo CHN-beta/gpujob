@@ -5,7 +5,7 @@ include(GNUInstallDirs)
 
 find_package(fmt 8 REQUIRED)
 find_package(ftxui REQUIRED)
-find_package(Boost REQUIRED COMPONENTS headers)
+find_package(Boost REQUIRED COMPONENTS headers filesystem)
 
 get_property(ImportedTargets DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY IMPORTED_TARGETS)
 message("Imported targets: ${ImportedTargets}")
@@ -21,7 +21,7 @@ set_property(TARGET job PROPERTY CXX_EXTENSIONS OFF)
 
 add_executable(jobd src/jobd.cpp)
 target_include_directories(jobd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(jobd PRIVATE fmt::fmt)
+target_link_libraries(jobd PRIVATE fmt::fmt Boost::headers Boost::filesystem)
 set_property(TARGET jobd PROPERTY CXX_STANDARD 23)
 set_property(TARGET jobd PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET jobd PROPERTY CXX_EXTENSIONS OFF)

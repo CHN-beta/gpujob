@@ -1,92 +1,149 @@
 # pragma once
 # include <string>
 # include <optional>
+# include <vector>
+# include <map>
+# include <filesystem>
+# include <fstream>
+# include <boost/interprocess/sync/file_lock.hpp>
 # include <cereal/cereal.hpp>
+# include <cereal/types/map.hpp>
 # include <cereal/types/optional.hpp>
 # include <cereal/types/string.hpp>
 # include <cereal/types/vector.hpp>
 # include <cereal/types/utility.hpp>
+# include <cereal/archives/json.hpp>
+# include <fmt/format.h>
+# include <fmt/ranges.h>
+# include <pwd.h>
+# include <grp.h>
+# include <sys/stat.h>
 
-struct job
+struct Job_t
+// 用来描述一个任务的相关信息
 {
-	unsigned id;
-	std::optional<unsigned> assign_to;
-	std::string user, command, comment;
-	enum class status { pending, running, finished } state;
-	bool run_in_container;
+	unsigned Id;
+	std::string User, Command, Comment;
+	unsigned UsingCores;
+	std::vector<unsigned> UsingGpus;
+	std::map<std::string, std::string> Environment;
+	enum class Status_t {Pending, Running, Finished} Status;
+	bool RunInContainer;
+	bool RunNow;
 
 	template <class Archive> void serialize(Archive & ar)
 	{
-		ar(id, assign_to, user, command, comment, state);
+		ar(Id, User, Command, Comment, UsingCores, UsingGpus, Environment, Status, RunInContainer, RunNow);
 	}
 };
 
+struct Input_t
+// 客户端发送给服务端的信息
+{
+	std::vector<Job_t> NewJobs;	// 写入时, Id 填 0, User 留空, Status 填 pending; 读取时 User 填实际值, Status 填 Pending
+	std::vector<std::pair<unsigned, std::string>> RemoveJobs;	// 第二个位置写用户名, 写时留空, 读取时填实际值
 
+	template <class Archive> void serialize(Archive & ar)
+	{
+		ar(NewJobs, RemoveJobs);
+	}
+};
 
-inline void write_in(std::vector<job> new_jobs, std::vector<unsigned> remove_jobs)
+struct Output_t
+// 服务端发送给客户端的信息
+{
+	std::vector<Job_t> Jobs;
+	template <class Archive> void serialize(Archive & ar)
+	{
+		ar(Jobs);
+	}
+};
+
+inline void write_in(Input_t input)
 {
 	boost::interprocess::file_lock in_lock{"/tmp/gpujob/in.lock"};
 	in_lock.lock();
+	unsigned i = 0;
+	while (std::filesystem::exists(fmt::format("/tmp/gpujob/in/{}", i)))
+		i++;
 	{
-		std::ofstream out{"/tmp/gpujob/in.dat"};
-		cereal::JSONOutputArchive{out}(new_jobs, remove_jobs);
+		std::ofstream out{fmt::format("/tmp/gpujob/in/{}", i)};
+		cereal::JSONOutputArchive{out}(input);
 	}
-	if (!std::filesystem::exists("/tmp/gpujob/in.modified"))
-		std::ofstream{"/tmp/gpujob/in.modified"};
 }
 
-inline void append_in(std::vector<job> new_jobs, std::vector<unsigned> remove_jobs)
+inline std::optional<Input_t> read_in()
 {
+	auto get_owner = [](std::string filename) -> std::optional<std::string>
+	{
+		struct stat info;
+		if (stat(filename.c_str(), &info))
+			return {};
+		struct passwd *pw = getpwuid(info.st_uid);
+		if (pw)
+			return pw->pw_name;
+		else
+			return {};
+	};
+
 	boost::interprocess::file_lock in_lock{"/tmp/gpujob/in.lock"};
 	in_lock.lock();
-	std::vector<job> previous_new_jobs;
-	std::vector<unsigned> previous_remove_jobs;
-	if (std::filesystem::exists("/tmp/gpujob/in.dat"))
+	std::optional<Input_t> result;
+	for (auto & p : std::filesystem::directory_iterator("/tmp/gpujob/in"))
 	{
-		std::ifstream in{"/tmp/gpujob/in.dat"};
-		cereal::JSONInputArchive{in}(previous_new_jobs, previous_remove_jobs);
+		try
+		{
+			if (p.is_regular_file())
+			{
+				Input_t input;
+				{
+					std::ifstream in{p.path()};
+					cereal::JSONInputArchive{in}(result);
+				}
+				if (auto owner = get_owner(p.path()); owner)
+				{
+					if (!result)
+						result.emplace();
+					for (auto& job : input.NewJobs)
+					{
+						job.User = *owner;
+						job.Status = Job_t::Status_t::Pending;
+						result->NewJobs.push_back(job);
+					}
+					for (auto& job : input.RemoveJobs)
+					{
+						job.second = *owner;
+						result->RemoveJobs.push_back(job);
+					}
+				}
+				else
+					continue;
+				std::filesystem::remove(p.path());
+			}
+		}
+		catch (...) {}
 	}
-	previous_new_jobs.insert(previous_new_jobs.end(), new_jobs.begin(), new_jobs.end());
-	previous_remove_jobs.insert(previous_remove_jobs.end(), remove_jobs.begin(), remove_jobs.end());
-	{
-		std::ofstream out{"/tmp/gpujob/in.dat"};
-		cereal::JSONOutputArchive{out}(previous_new_jobs, previous_remove_jobs);
-	}
-	if (!std::filesystem::exists("/tmp/gpujob/in.modified"))
-		std::ofstream{"/tmp/gpujob/in.modified"};
+	return result;
 }
 
-
-
-inline std::vector<std::string> queue_gpu_name()
+inline void write_out(Output_t output)
 {
-	std::vector<std::string> names;
-	boost::process::ipstream out;
-	boost::process::child c{"bash -c \". nvhpc && pgaccelinfo | grep 'Device Name'\"", boost::process::std_out > out};
-	std::string line;
-	while (c.running() && std::getline(out, line) && !line.empty())
-	{
-		std::regex re{"Device Name:\\s+NVIDIA GeForce (.*)"};
-		std::smatch match;
-		if (std::regex_search(line, match, re))
-			names.push_back(match[1]);
-	}
-	c.wait();
-	return names;
-}
-
-inline void write_out(std::vector<job> jobs)
-{
-	auto gpus = queue_gpu_name();
-
-	if (!std::filesystem::exists("/tmp/gpujob"))
-		std::filesystem::create_directory("/tmp/gpujob");
-	if (!std::filesystem::exists("/tmp/gpujob/out.lock"))
-		std::ofstream{"/tmp/gpujob/out.lock"};
 	boost::interprocess::file_lock out_lock{"/tmp/gpujob/out.lock"};
 	out_lock.lock();
 	{
 		std::ofstream out{"/tmp/gpujob/out.dat"};
-		cereal::JSONOutputArchive{out}(jobs, gpus);
+		cereal::JSONOutputArchive{out}(output);
 	}
+}
+
+inline Output_t read_out()
+{
+	boost::interprocess::file_lock out_lock{"/tmp/gpujob/out.lock"};
+	out_lock.lock();
+	Output_t result;
+	{
+		std::ifstream in{"/tmp/gpujob/out.dat"};
+		cereal::JSONInputArchive{in}(result);
+	}
+	return result;
 }

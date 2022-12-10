@@ -1,8 +1,7 @@
+# include <set>
 # include <job.hpp>
-# include <pwd.h>
-# include <grp.h>
-# include <sys/stat.h>
-# include <optional>
+# include <boost/process.hpp>
+# include <nameof.hpp>
 
 using namespace std::literals;
 
@@ -51,72 +50,23 @@ inline void create_files()
 			std::filesystem::perms::group_read | std::filesystem::perms::group_write |
 			std::filesystem::perms::others_read | std::filesystem::perms::others_write
 		);
-		std::vector<job> jobs;
-		std::vector<std::string> gpus;
-		{
-			std::ofstream os("/tmp/gpujob/out.dat");
-			cereal::JSONOutputArchive archive(os);
-			archive(jobs, gpus);
-		}
+		Output_t out;
+		write_out(out);
 	}
-}
-
-inline std::tuple<std::vector<job>, std::vector<std::pair<unsigned, std::string>>> read_input_files()
-// 读入来自 job 的输入文件，步骤如下：
-//	* 加锁
-// 	* 依次从 /tmp/gpujob/in 读入文件。读入的过程中，需要设定任务的所有者和状态。
-// 	* 然后删除 /tmp/gpujob/in 中的文件。
-{
-	boost::interprocess::file_lock in_lock{"/tmp/gpujob/in.lock"};
-	in_lock.lock();
-	std::vector<job> all_jobs;
-	std::vector<std::pair<unsigned, std::string>> all_remove_jobs;
-
-	for (const auto& entry : std::filesystem::directory_iterator("/tmp/gpujob/in"))
-		if (entry.is_regular_file())
-		{
-			std::vector<job> jobs;
-			std::vector<unsigned> remove_jobs;
-
-			// get owner of the file
-			std::optional<std::string> owner;
-			{
-				struct stat info;
-				auto path = entry.path();
-				stat(path.c_str(), &info);
-				struct passwd *pw = getpwuid(info.st_uid);
-				if (pw)
-					owner.emplace(pw->pw_name);
-			}
-
-			// read content of file
-			{
-				std::ifstream is(entry.path());
-				cereal::JSONInputArchive archive(is);
-				archive(jobs, gpus);
-			}
-			std::filesystem::remove(entry.path());
-
-			for (auto& job : jobs)
-			{
-				job.owner = owner;
-				job.status = job_status::waiting;
-				all_jobs.emplace_back(std::move(job));
-			}
-			for (auto& job : remove_jobs)
-				all_remove_jobs.emplace_back(job, owner);
-		}
-	return {all_jobs, all_remove_jobs};
 }
 
 int main()
 {
 	try
 	{
-		std::array<std::shared_ptr<boost::process::child>, 3> tasks;
-		std::vector<job> jobs;
+		std::vector<Job_t> jobs;
+		std::map<unsigned, std::unique_ptr<boost::process::child>> tasks;
 		unsigned next_id = 0;
-		bool jobs_changed = true;
+
+		auto notify = [](std::string comment)
+		{
+			boost::process::child{"/usr/local/bin/notify", comment}.detach();
+		};
 
 		create_files();
 
@@ -124,40 +74,43 @@ int main()
 		{
 			std::this_thread::sleep_for(1s);
 
-			// read new jobs from in.dat
-			if (std::filesystem::exists("/tmp/gpujob/in.modified"))
-			{
-				auto [new_jobs, remove_jobs] = read_in();
+			bool jobs_changed = false;
 
-				for (auto& job : new_jobs)
+			// read new jobs
+			if (auto input = read_in())
+			{
+				for (auto& job : input->NewJobs)
 				{
-					job.id = next_id++;
-					job.state = job::status::pending;
+					job.Id = next_id++;
 					jobs.push_back(job);
-					std::clog << fmt::format("new job: {} {} {} {} {} {} {}\n",
-						job.id, job.assign_to, job.script_id, job.user, job.path, job.command, nameof::nameof_enum(job.state));
-					auto message = fmt::format("notify 'add {} {}'", job.id, job.path);
-					std::system(message.c_str());
+					std::clog << fmt::format
+					(
+						"new job: {} {} {} {} {} {} {}\n",
+						job.Id, job.User, job.Command, job.Comment, job.UsingCores, job.UsingGpus, job.Environment,
+						nameof::nameof_enum(job.Status), job.RunInContainer, job.RunNow
+					);
+					notify(fmt::format("new job: {} {}", job.Id, job.Comment));
 				}
-				for (auto& job : remove_jobs)
+				for (auto& job : input->RemoveJobs)
 				{
-					auto it = std::find_if(jobs.begin(), jobs.end(), [&](auto& j){return j.id == job;});
+					auto it = std::find_if(jobs.begin(), jobs.end(), [&](auto& j){return j.Id == job.first;});
 					if (it != jobs.end())
-					// if (it != jobs.end() && it->state == job::status::pending)
 					{
-						if (it->state == job::status::running)
+						if (it->User == job.second)
 						{
-							auto pid = tasks[it->assign_to]->id();
-							tasks[it->assign_to]->detach();
-							tasks[it->assign_to].reset();
-							std::clog << fmt::format("kill job: {} {}\n", it->id, pid);
-							auto command = fmt::format("rkill {}", pid);
-							std::system(command.c_str());
+							if (it->Status == Job_t::Status_t::Running)
+							{
+								auto pid = tasks[it->Id]->id();
+								tasks[it->Id]->detach();
+								tasks[it->Id].reset();
+								std::clog << fmt::format("kill job: {} {}\n", it->Id, pid);
+								auto command = fmt::format("rkill {}", pid);
+								std::system(command.c_str());
+							}
+							it->Status = Job_t::Status_t::Finished;
+							std::clog << fmt::format("remove job {} success\n", job);
+							notify(fmt::format("remove job: {} {}", it->Id, it->Comment));
 						}
-						it->state = job::status::finished;
-						std::clog << fmt::format("remove job {} success\n", job);
-						auto message = fmt::format("notify 'delete {} {}'", it->id, it->path);
-						std::system(message.c_str());
 					}
 					else
 						std::clog << fmt::format("remove job {} not found\n", job);
@@ -165,51 +118,77 @@ int main()
 				jobs_changed = true;
 			}
 
-			// assign new jobs
+			// check if jobs finished
 			for (auto& task : tasks)
-			{
-				if (!task || !task->running())
+				if (!task.second->running())
 				{
-					if (task)
-					{
-						for (auto& job : jobs)
-							if (job.assign_to == &task - tasks.data() && job.state == job::status::running)
-							{
-								job.state = job::status::finished;
-								auto message = fmt::format("notify 'finish {} {}'", job.id, job.path);
-								std::system(message.c_str());
-							}
-						task.reset();
-						jobs_changed = true;
-					}
-					auto it = std::find_if(jobs.begin(), jobs.end(),
-						[&](auto& j){return j.state == job::status::pending && j.assign_to == &task - tasks.data();});
+					auto it = std::find_if(jobs.begin(), jobs.end(), [&](auto& job){return job.Id == task.first;});
 					if (it != jobs.end())
 					{
-						it->state = job::status::running;
-						// replace " with \"
-						std::string command = it->command;
-						for (std::size_t i = 0; i < command.size(); i++)
-							if (command[i] == '"')
-								command.insert(i++, 1, '\\');
-						task = std::make_shared<boost::process::child>(fmt::format
-							(
-								R"(su - {} -c "cd {} && CUDA_VISIBLE_DEVICES={} {} > {} 2>&1")",
-								it->user, it->path, it->assign_to, command, "output.txt"
-							));
-						auto message = fmt::format("notify 'start {} {}'", it->id, it->path);
-						std::system(message.c_str());
-						jobs_changed = true;
+						it->Status = Job_t::Status_t::Finished;
+						std::clog << fmt::format("job {} finished\n", it->Id);
+						notify(fmt::format("finish job: {} {}", it->Id, it->Comment));
 					}
+					else
+						std::unreachable();
+					task.second.reset();
+					jobs_changed = true;
 				}
+			std::erase_if(tasks, [](auto& task){return !task.second;});
+
+			// assign new jobs
+			if (jobs_changed)
+			{
+				std::set<unsigned> gpu_used;
+				unsigned cpu_used;
+				auto rebuild_usage_statistic = [&]
+				{
+					gpu_used.clear();
+					cpu_used = 0;
+					for (auto& task : tasks)
+					{
+						auto it = std::find_if(jobs.begin(), jobs.end(), [&](auto& job){return job.Id == task.first;});
+						if (it != jobs.end())
+						{
+							for (auto gpu : it->UsingGpus)
+								gpu_used.insert(gpu);
+							cpu_used += it->UsingCores;
+						}
+						else
+							std::unreachable();
+					}
+				};
+				rebuild_usage_statistic();
+
+				for (auto& job : jobs)
+					if (job.Status == Job_t::Status_t::Pending)
+					{
+						if (!std::ranges::any_of(job.UsingGpus, [&](auto gpu){return gpu_used.contains(gpu);})
+							&& cpu_used + job.UsingCores <= std::thread::hardware_concurrency())
+						{
+							std::clog << fmt::format("run job: {} {}\n", job.Id, job.Comment);
+							notify(fmt::format("run job: {} {}", job.Id, job.Comment));
+							job.Status = Job_t::Status_t::Running;
+
+							// systemd-run -M root@.host -P -q -E ENV_NAME sleep 5
+							std::vector<std::string> args = 
+							{
+								"-M"s, fmt::format("{}@{}", job.User, job.RunInContainer ? ".host"s : "ubuntu-22.04"),
+								"-P"s, "-q"s
+							};
+							for (auto& [name, value] : job.Environment)
+								args.push_back(fmt::format("--setenv={}={}", name, value));
+							args.push_back(job.Command);
+							tasks[job.Id] = std::make_unique<boost::process::child>
+								(boost::process::search_path("systemd-run"), args);
+							rebuild_usage_statistic();
+						}
+					}
 			}
 
 			// write jobs to out.dat
 			if (jobs_changed)
-			{
-				write_out(jobs);
-				jobs_changed = false;
-			}
+				write_out({jobs});
 		}
 	}
 	catch (std::exception const& e)

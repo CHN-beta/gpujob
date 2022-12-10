@@ -87,7 +87,8 @@
 		"valarray": "cpp",
 		"variant": "cpp",
 		"*.inc": "cpp",
-		"gsl_byte": "cpp"
+		"gsl_byte": "cpp",
+		"*.ipp": "cpp"
 	},
 	"C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
 }
