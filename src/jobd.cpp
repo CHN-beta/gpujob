@@ -160,8 +160,8 @@ int main()
 				for (auto& job : jobs)
 					if (job.Status == Job_t::Status_t::Pending)
 					{
-						if (!std::ranges::any_of(job.UsingGpus, [&](auto gpu){return gpu_used.contains(gpu);})
-							&& cpu_used + job.UsingCores <= std::thread::hardware_concurrency())
+						if ((!std::ranges::any_of(job.UsingGpus, [&](auto gpu){return gpu_used.contains(gpu);})
+							&& cpu_used + job.UsingCores <= std::thread::hardware_concurrency()) || job.RunNow)
 						{
 							// systemd-run -M root@.host -P -q -E ENV_NAME sleep 5
 							std::vector<std::string> args = 
