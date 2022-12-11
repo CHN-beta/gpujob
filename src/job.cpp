@@ -349,10 +349,14 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					else
 						return run_path;
 				}());
-				result->Environment = {{"GPUJOB_RUN_PATH", run_path}, {"GPUJOB_LAMMPS_INPUT", lammps_input_text}};
+				result->Environment =
+				{
+					{"GPUJOB_RUN_PATH", run_path},
+					{"GPUJOB_LAMMPS_INPUT", lammps_input_text}
+				};
 				result->Arguments.emplace_back(fmt::format
 				(
-					"mpirun -n {} -x OMP_NUM_THREADS={} {}lmp -in $GPUJOB_LAMMPS_INPUT{}",
+					". /etc/profile.d/lammps.sh && mpirun -n {} -x OMP_NUM_THREADS={} {}lmp -in $GPUJOB_LAMMPS_INPUT{}",
 					*mpi_threads, *openmp_threads,
 					gpu_device_use_checked
 						? fmt::format("-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} ",
