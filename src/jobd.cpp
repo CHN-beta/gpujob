@@ -63,10 +63,7 @@ int main()
 		std::map<unsigned, std::unique_ptr<boost::process::child>> tasks;
 		unsigned next_id = 0;
 
-		auto notify = [](std::string comment)
-		{
-			boost::process::child{"/usr/local/bin/notify", comment}.detach();
-		};
+		auto notify = [](std::string comment){boost::process::child{"/usr/local/bin/notify", comment}.detach();};
 
 		create_files();
 
@@ -85,9 +82,9 @@ int main()
 					jobs.push_back(job);
 					std::clog << fmt::format
 					(
-						"new job: {} {} {} {} {} {} {}\n",
-						job.Id, job.User, job.Command, job.Comment, job.UsingCores, job.UsingGpus, job.Environment,
-						nameof::nameof_enum(job.Status), job.RunInContainer, job.RunNow
+						"new job: {} {} {} {} {} {} {} {} {} {} {}\n",
+						job.Id, job.User, job.Program, job.Comment, job.Environment, job.Arguments, job.UsingCores,
+						job.UsingGpus, nameof::nameof_enum(job.Status), job.RunInContainer, job.RunNow
 					);
 					notify(fmt::format("new job: {} {}", job.Id, job.Comment));
 				}
@@ -166,21 +163,28 @@ int main()
 						if (!std::ranges::any_of(job.UsingGpus, [&](auto gpu){return gpu_used.contains(gpu);})
 							&& cpu_used + job.UsingCores <= std::thread::hardware_concurrency())
 						{
-							std::clog << fmt::format("run job: {} {}\n", job.Id, job.Comment);
-							notify(fmt::format("run job: {} {}", job.Id, job.Comment));
-							job.Status = Job_t::Status_t::Running;
-
 							// systemd-run -M root@.host -P -q -E ENV_NAME sleep 5
 							std::vector<std::string> args = 
 							{
-								"-M"s, fmt::format("{}@{}", job.User, job.RunInContainer ? ".host"s : "ubuntu-22.04"),
-								"-P"s, "-q"s
+								"-M"s, fmt::format("{}@{}", job.User, job.RunInContainer ? "ubuntu-22.04"s : ".host"s ),
+								"-P"s, "-q"s, "--user"s,
 							};
 							for (auto& [name, value] : job.Environment)
-								args.push_back(fmt::format("--setenv={}={}", name, value));
-							args.push_back(job.Command);
+								args.push_back(fmt::format("--setenv={}", name));
+							args.push_back(job.Program);
+							args.insert(args.end(), job.Arguments.begin(), job.Arguments.end());
+
+							boost::process::environment env = boost::this_process::environment();
+							for (auto& [name, value] : job.Environment)
+								env[name] = value;
+
+							std::clog << fmt::format("run job args: {}\n", args);
 							tasks[job.Id] = std::make_unique<boost::process::child>
-								(boost::process::search_path("systemd-run"), args);
+								(boost::process::search_path("systemd-run"), boost::process::args(args), env);
+
+							std::clog << fmt::format("run job: {} {}\n", job.Id, job.Comment);
+							notify(fmt::format("run job: {} {}", job.Id, job.Comment));
+							job.Status = Job_t::Status_t::Running;
 							rebuild_usage_statistic();
 						}
 					}

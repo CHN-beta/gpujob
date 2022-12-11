@@ -7,9 +7,10 @@ int main(int argc, const char** argv)
 	{
 		cxxopts::Options options("job-cli", "A command line interface for the simple job scheduler.");
 		options.add_options()
-			("a,action", "Action to do (\"submit\", \"list\" or \"cancel\"). "
-				"For \"list\", no more arguments is needed. "
-				"For \"cancel\", only job id (\"-id\", see below) is needed. "
+			("a,action", "Action to do (\"submit\", \"list\", \"query\" or \"cancel\"). "
+				"Use \"list\" to print all submitted jobs, no more arguments is needed. "
+				"Use \"query\" to query detail information of a job, only job id (\"-id\", see below) is needed. "
+				"Use \"cancel\" to cancel a submitted job, only job id (\"-id\", see below) is needed. "
 				"For \"submit\", all the other arguments are needed.", cxxopts::value<std::string>())
 			("p,program", "Program to run (\"vasp\", \"lammps\" or \"custom\").",
 				cxxopts::value<std::string>()->default_value(""))
@@ -25,8 +26,10 @@ int main(int argc, const char** argv)
 				cxxopts::value<unsigned>()->default_value(0))
 			("omp,openmp-threads", "Number of OpenMP threads to use. "
 				"Need to be provided only when running VASP on CPU. "
-				"Optional when running VASP on GPU (default to 2) or LAMMPS (no default).",
+				"Optional when running VASP on GPU (default to 2) or LAMMPS (default to 1).",
 				cxxopts::value<unsigned>()->default_value(0))
+			("li,lammps-input", "File path of LAMMPS input script. Need to be provided only when running LAMMPS.",
+				cxxopts::value<std::string>()->default_value(""))
 			("cc,custom-command", "Custom command to run, need to be provided only when select to run custom program.",
 				cxxopts::value<std::string>()->default_value(""))
 			("ccc,custom-command-cores",

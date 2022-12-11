@@ -14,7 +14,7 @@ message("List of compile features: ${CMAKE_CXX_COMPILE_FEATURES}")
 
 add_executable(job src/job.cpp)
 target_include_directories(job PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(job PRIVATE fmt::fmt ftxui::screen ftxui::dom ftxui::component Boost::headers)
+target_link_libraries(job PRIVATE fmt::fmt ftxui::screen ftxui::dom ftxui::component Boost::headers Boost::filesystem)
 set_property(TARGET job PROPERTY CXX_STANDARD 23)
 set_property(TARGET job PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET job PROPERTY CXX_EXTENSIONS OFF)

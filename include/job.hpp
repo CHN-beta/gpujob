@@ -102,7 +102,7 @@ inline std::optional<Input_t> read_in()
 				Input_t input;
 				{
 					std::ifstream in{p.path()};
-					cereal::JSONInputArchive{in}(result);
+					cereal::JSONInputArchive{in}(input);
 				}
 				if (auto owner = get_owner(p.path()); owner)
 				{
@@ -125,7 +125,14 @@ inline std::optional<Input_t> read_in()
 				std::filesystem::remove(p.path());
 			}
 		}
-		catch (...) {}
+		catch (std::exception & e)
+		{
+			std::clog << fmt::format("error in read_in: {}", e.what()) << std::endl;
+		}
+		catch (...)
+		{
+			std::clog << fmt::format("error in read_in: unknown error") << std::endl;
+		}
 	}
 	return result;
 }
