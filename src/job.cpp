@@ -276,9 +276,11 @@ std::optional<Job_t> request_new_job_detail_from_user()
 				result->Environment = {{"GPUJOB_RUN_PATH", run_path}};
 				result->Arguments.emplace_back(fmt::format
 				(
-					"module load nvhpc/22.11 mkl/2022.2.1 "
-						"&& mpirun -np {} -x OMP_NUM_THREADS={} -x MKL_THREADING_LAYER=INTEL "
-							"-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} vasp_gpu_{}_{}",
+					". /etc/profile.d/modules.sh "
+					"&& module use /opt/intel/oneapi/modulefiles /opt/nvidia/hpc_sdk/modulefiles "
+					"&& module load nvhpc/22.11 mkl/2022.2.1 "
+					"&& mpirun -np {} -x OMP_NUM_THREADS={} -x MKL_THREADING_LAYER=INTEL "
+						"-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} vasp_gpu_{}_{}",
 					selected_gpus.size(), *openmp_threads, fmt::join(selected_gpus, ","), 
 					vasp_version_internal_names[vasp_version_selected], vasp_variant_names[vasp_variant_selected]
 				));
