@@ -313,7 +313,8 @@ std::optional<Job_t> request_new_job_detail_from_user()
 				result->Environment = {{"GPUJOB_RUN_PATH", run_path}};
 				result->Arguments.emplace_back(fmt::format
 				(
-					"module load compiler/2022.2.1 mkl/2022.2.1 mpi/2021.7.1 icc/2022.2.1 "
+					". /etc/profile.d/modules.sh && module use /opt/intel/oneapi/modulefiles "
+					"&& module load compiler/2022.2.0 mkl/2022.2.0 mpi/2021.7.0 icc/2022.2.0 "
 						"&& mpirun -np {} -genv OMP_NUM_THREADS {} -genv MKL_THREADING_LAYER INTEL vasp_cpu_{}_{}",
 					*mpi_threads, *openmp_threads,
 					vasp_version_internal_names[vasp_version_selected], vasp_variant_names[vasp_variant_selected]
