@@ -63,7 +63,11 @@ int main()
 		std::map<unsigned, std::unique_ptr<boost::process::child>> tasks;
 		unsigned next_id = 0;
 
-		auto notify = [](std::string comment){boost::process::child{"/usr/local/bin/notify", comment}.detach();};
+		auto notify = [](std::string comment){boost::process::child
+		{
+			"/usr/local/bin/notify", comment,
+			boost::process::std_out > boost::process::null, boost::process::std_err > boost::process::null
+		}.detach();};
 
 		create_files();
 
