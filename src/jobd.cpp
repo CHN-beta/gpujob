@@ -102,7 +102,7 @@ int main()
 								tasks[it->Id].reset();
 								std::clog << fmt::format("kill job: {} {}\n", it->Id, pid);
 								auto command = fmt::format("rkill {}", pid);
-								std::system(command.c_str());
+								boost::process::child{command}.wait();
 							}
 							it->Status = Job_t::Status_t::Finished;
 							std::clog << fmt::format("remove job {} success\n", job);
