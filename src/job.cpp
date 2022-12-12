@@ -224,7 +224,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 		{
 			result.emplace();
 			result->Id = 0;
-			result->Program = boost::process::search_path("bash").string();
+			result->Program = "bash";
 			result->Arguments = {"-c"};
 			result->Status = Job_t::Status_t::Pending;
 			result->RunNow = run_now_checked;
