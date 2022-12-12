@@ -239,7 +239,6 @@ std::optional<Job_t> request_new_job_detail_from_user()
 			}
 
 			// 分任务类别来设置: vasp cpu, vasp gpu, lammps, custom
-			// 不在 argument 中设置前后的任务起始和终止时间, cd, 重定向, 这个最后一起加.
 			if (program_internal_names[program_selected] == "vasp" && gpu_device_use_checked)
 			{
 				// 获取 openmp 线程数

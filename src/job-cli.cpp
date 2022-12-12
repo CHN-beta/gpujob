@@ -1,5 +1,10 @@
+# include <set>
 # include <job.hpp>
 # include <cxxopts.hpp>
+# include <fmt/format.h>
+# include <nameof.hpp>
+
+using namespace std::literals;
 
 int main(int argc, const char** argv)
 {
@@ -12,6 +17,7 @@ int main(int argc, const char** argv)
 				"Use \"query\" to query detail information of a job, only job id (\"-id\", see below) is needed. "
 				"Use \"cancel\" to cancel a submitted job, only job id (\"-id\", see below) is needed. "
 				"For \"submit\", all the other arguments are needed.", cxxopts::value<std::string>())
+			("id", "Job id, need to be provided only when query or cancel a job.", cxxopts::value<unsigned>())
 			("p,program", "Program to run (\"vasp\", \"lammps\" or \"custom\").",
 				cxxopts::value<std::string>()->default_value(""))
 			("vve,vasp-version", "VASP version (\"6.3.1\"), need to be provided only when running VASP.",
@@ -23,20 +29,22 @@ int main(int argc, const char** argv)
 				cxxopts::value<std::vector<unsigned>>()->default_value({}))
 			("mpit,mpi-threads", "Number of MPI threads to use. "
 				"Need to be provided only when running VASP on cpu or LAMMPS.",
-				cxxopts::value<unsigned>()->default_value(0))
+				cxxopts::value<unsigned>()->default_value("0"))
 			("omp,openmp-threads", "Number of OpenMP threads to use. "
 				"Need to be provided only when running VASP on CPU. "
 				"Optional when running VASP on GPU (default to 2) or LAMMPS (default to 1).",
-				cxxopts::value<unsigned>()->default_value(0))
+				cxxopts::value<unsigned>()->default_value("0"))
 			("li,lammps-input", "File path of LAMMPS input script. Need to be provided only when running LAMMPS.",
 				cxxopts::value<std::string>()->default_value(""))
 			("cc,custom-command", "Custom command to run, need to be provided only when select to run custom program.",
 				cxxopts::value<std::string>()->default_value(""))
 			("ccc,custom-command-cores",
 				"Number of cores to use, need to be provided only when select to run custom program.",
-				cxxopts::value<unsigned>()->default_value(0))
-			("cp,custom-path", "Run in custom directory (default is in current directory).",
+				cxxopts::value<unsigned>()->default_value("0"))
+			("rp,run-path", "Run in custom directory (default is in current directory).",
 				cxxopts::value<std::string>()->default_value(""))
+			("ngs,no-gpu-sf", "Do not append \"-sf gpu\" in LAMMPS commandline.",
+				cxxopts::value<bool>()->default_value("false"))
 			("rn,run-now", "Run the job immediately.", cxxopts::value<bool>()->default_value("false"))
 			("ric,run-in-container", "Run the job in ubuntu-22.04 container.",
 				cxxopts::value<bool>()->default_value("false"));
@@ -47,84 +55,237 @@ int main(int argc, const char** argv)
 		{
 			Job_t job;
 			job.Id = 0;
+			job.Status = Job_t::Status_t::Pending;
+			job.RunNow = args["run-now"].as<bool>();
 
-			// set Program and Environment
-			if (args["program"].as<std::string>() == "vasp")
+			auto gpu = args["gpu"].as<std::vector<unsigned>>();
+
+			if (args["program"].as<std::string>() == "vasp" && gpu.size())
 			{
-				job.Program = "vasp";
-				if (auto gpu = args["gpu"].as<std::vector<unsigned>>(); gpu.size())
+				auto run_path = args["run-path"].as<std::string>();
+				if (run_path.empty())
 				{
-					job.Environment["GPUJOB_USING_GPU"] = "1";
-					job.Environment["GPUJOB_GPUS"] = fmt::format("{}", fmt::join(gpu, ","));
-					job.Environment["GPUJOB_MPI_THREADS"] = fmt::format("{}", gpu.size());
-					if (auto omp = args["openmp-threads"].as<unsigned>())
-						job.Environment["GPUJOB_OPENMP_THREADS"] = fmt::format("{}", omp);
+					run_path = std::filesystem::current_path();
+					if (std::smatch match; std::regex_match(run_path, match, std::regex("/home(/.*)")))
+						run_path = "/hosthome" + match[1].str();
+				}
+				auto openmp_threads = args["openmp-threads"].as<unsigned>();
+				if (!openmp_threads)
+					openmp_threads = 2;
+				std::map<std::string, std::string> vasp_version_map {{"6.3.1", "631"}};
+				auto vasp_version = args["vasp-version"].as<std::string>();
+				if (!vasp_version_map.contains(vasp_version))
+					throw std::invalid_argument{fmt::format("Invalid VASP version: {}", vasp_version)};
+				vasp_version = vasp_version_map[vasp_version];
+				std::set<std::string> vasp_variant_set {"std", "gam", "ncl"};
+				auto vasp_variant = args["vasp-variant"].as<std::string>();
+				if (!vasp_variant_set.contains(vasp_variant))
+					throw std::invalid_argument{fmt::format("Invalid VASP variant: {}", vasp_variant)};
+
+				job.Comment = fmt::format("{} {}", std::getenv("USER"), [&]
+				{
+					if (std::smatch match; std::regex_match(run_path, match, std::regex("/hosthome/[^/]+/(.*)")))
+						return match[1].str();
 					else
-						job.Environment["GPUJOB_OPENMP_THREADS"] = fmt::format("{}", 2);
-				}
-				else
+						return run_path;
+				}());
+				job.ProgramString = fmt::format
+				(
+					"cd '{}'; "
+					"( "
+						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
+						"&& . /etc/profile.d/modules.sh "
+						"&& module use /opt/intel/oneapi/modulefiles /opt/nvidia/hpc_sdk/modulefiles "
+						"&& module load nvhpc/22.11 mkl/2022.2.1 "
+						"&& mpirun -np {} -x OMP_NUM_THREADS={} -x MKL_THREADING_LAYER=INTEL "
+							"-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} vasp_gpu_{}_{} "
+						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
+					") 2>&1 | tee -a output.txt",
+					std::regex_replace(run_path, std::regex("'"), R"('"'"')"),
+					gpu.size(), openmp_threads, fmt::join(gpu, ","), vasp_version, vasp_variant
+				);
+				job.UsingCores = gpu.size() * openmp_threads;
+				job.UsingGpus = gpu;
+				job.RunInContainer = true;
+			}
+			else if (args["program"].as<std::string>() == "vasp" && !gpu.size())
+			{
+				auto mpi_threads = args["mpi-threads"].as<unsigned>();
+				if (!mpi_threads)
+					throw std::invalid_argument{"MPI 线程数必须为正整数."};
+				auto openmp_threads = args["openmp-threads"].as<unsigned>();
+				if (!openmp_threads)
+					throw std::invalid_argument{"OpenMP 线程数必须为正整数."};
+				auto run_path = args["run-path"].as<std::string>();
+				if (run_path.empty())
+					run_path = std::filesystem::current_path();
+				std::map<std::string, std::string> vasp_version_map {{"6.3.1", "631"}};
+				auto vasp_version = args["vasp-version"].as<std::string>();
+				if (!vasp_version_map.contains(vasp_version))
+					throw std::invalid_argument{fmt::format("Invalid VASP version: {}", vasp_version)};
+				vasp_version = vasp_version_map[vasp_version];
+				std::set<std::string> vasp_variant_set {"std", "gam", "ncl"};
+				auto vasp_variant = args["vasp-variant"].as<std::string>();
+				if (!vasp_variant_set.contains(vasp_variant))
+					throw std::invalid_argument{fmt::format("Invalid VASP variant: {}", vasp_variant)};
+
+				job.Comment = fmt::format("{} {}", std::getenv("USER"), [&]
 				{
-					job.Environment["GPUJOB_USING_GPU"] = "0";
-					if (!args["mpi-threads"].as<unsigned>())
-						throw std::invalid_argument{"unrecognized number of MPI threads."};
-					job.Environment["GPUJOB_MPI_THREADS"] = fmt::format("{}", args["mpi-threads"].as<unsigned>());
-					if (!args["openmp-threads"].as<unsigned>())
-						throw std::invalid_argument{"unrecognized number of OpenMP threads."};
-					job.Environment["GPUJOB_OPENMP_THREADS"] = fmt::format("{}", args["openmp-threads"].as<unsigned>());
-				}
-				if (!std::set<std::string>{"6.3.1"}.contains(args["vasp-version"].as<std::string>()))
-					throw std::invalid_argument("Unsupported VASP version.");
-				job.Environment["GPUJOB_VASP_VERSION"] = args["vasp-version"].as<std::string>();
-				if (!std::set<std::string>{"std", "gam", "ncl"}.contains(args["vasp-variant"].as<std::string>()))
-					throw std::invalid_argument("Unsupported VASP variant.");
-				job.Environment["GPUJOB_VASP_VARIANT"] = args["vasp-variant"].as<std::string>();
+					if (std::smatch match; std::regex_match(run_path, match, std::regex("/home/[^/]+/(.*)")))
+						return match[1].str();
+					else
+						return run_path;
+				}());
+				job.ProgramString = fmt::format
+				(
+					"cd '{}'; "
+					"( "
+						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
+						"&& . /etc/profile.d/modules.sh "
+						"&& module use /opt/intel/oneapi/modulefiles "
+						"&& module load compiler/2022.2.0 mkl/2022.2.0 mpi/2021.7.0 icc/2022.2.0 "
+						"&& mpirun -np {} -genv OMP_NUM_THREADS {} -genv MKL_THREADING_LAYER INTEL vasp_cpu_{}_{} "
+						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
+					") 2>&1 | tee -a output.txt",
+					std::regex_replace(run_path, std::regex("'"), R"('"'"')"),
+					mpi_threads, openmp_threads, vasp_version, vasp_variant
+				);
+				job.UsingCores = mpi_threads * openmp_threads;
+				job.RunInContainer = false;
 			}
 			else if (args["program"].as<std::string>() == "lammps")
 			{
-				job.Program = "lammps";
-				if (auto gpu = args["gpu"].as<std::vector<unsigned>>(); gpu.size())
+				auto mpi_threads = args["mpi-threads"].as<unsigned>();
+				if (!mpi_threads)
+					throw std::invalid_argument{"MPI 线程数必须为正整数."};
+				auto openmp_threads = args["openmp-threads"].as<unsigned>();
+				if (!openmp_threads)
+					openmp_threads = 1;
+				auto run_path = args["run-path"].as<std::string>();
+				if (run_path.empty())
+					run_path = std::filesystem::current_path();
+
+				job.Comment = fmt::format("{} {}", std::getenv("USER"), [&]
 				{
-					job.Environment["GPUJOB_USING_GPU"] = "1";
-					job.Environment["GPUJOB_GPUS"] = fmt::format("{}", fmt::join(gpu, ","));
-					job.Environment["GPUJOB_LAMMPS_GPUSF"] = "1";
-				}
-				else
-					job.Environment["GPUJOB_USING_GPU"] = "0";
-				if (!args["mpi-threads"].as<unsigned>())
-					throw std::invalid_argument{"unrecognized number of MPI threads."};
-				job.Environment["GPUJOB_MPI_THREADS"] = fmt::format("{}", args["mpi-threads"].as<unsigned>());
-				if (auto omp = args["openmp-threads"].as<unsigned>())
-				{
-					job.Environment["GPUJOB_LAMMPS_OPENMP"] = "1";
-					job.Environment["GPUJOB_OPENMP_THREADS"] = fmt::format("{}", omp);
-				}
-				else
-					job.Environment["GPUJOB_LAMMPS_OPENMP"] = "0";
-				job.Environment["GPUJOB_LAMMPS_INPUT"] = "lammps.in";
+					if (std::smatch match; std::regex_match(run_path, match, std::regex("/home/[^/]+/(.*)")))
+						return match[1].str();
+					else
+						return run_path;
+				}());
+				job.ProgramString = fmt::format
+				(
+					"cd '{}'; "
+					"( "
+						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
+						"&& . /etc/profile.d/lammps.sh "
+						"&& mpirun -n {} -x OMP_NUM_THREADS={} {}lmp -in '{}'{}"
+						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
+					") 2>&1 | tee -a output.txt",
+					std::regex_replace(run_path, std::regex("'"), R"('"'"')"),
+					mpi_threads, openmp_threads,
+					gpu.size() ? fmt::format("-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} ",
+						fmt::join(gpu, ",")) : ""s,
+					std::regex_replace(args["lammps-input"].as<std::string>(), std::regex("'"), R"('"'"')"),
+					gpu.size()
+						? fmt::format("{} -pk gpu {}", args["no-gpu-sf"].as<bool>() ? ""s
+							: " -sf gpu"s, gpu.size()) : ""s
+				);
+				job.UsingCores = mpi_threads * openmp_threads;
+				job.UsingGpus = gpu;
+				job.RunInContainer = false;
 			}
 			else if (args["program"].as<std::string>() == "custom")
 			{
-				if (!args["custom-command"].as<std::string>().size())
-					throw std::invalid_argument("custom-command not specified.");
-				job.Program = args["custom-command"].as<std::string>();
-				if (!args["custom-command-cores"].as<unsigned>())
-					throw std::invalid_argument("custom-command-cores not specified.");
-				job.Environment["GPUJOB_MPI_THREADS"] = fmt::format("{}", args["custom-command-cores"].as<unsigned>())
+				auto cores = args["custom-command-cores"].as<unsigned>();
+				if (!cores)
+					throw std::invalid_argument{"核心数必须为正整数."};
+				auto run_path = args["run-path"].as<std::string>();
+				if (run_path.empty())
+					run_path = std::filesystem::current_path();
+
+				job.Comment = fmt::format("{} {}", std::getenv("USER"), [&]
+				{
+					if
+					(
+						std::smatch match;
+						std::regex_match(run_path, match, std::regex("/(?:hosthome|home)/[^/]+/(.*)"))
+					)
+						return match[1].str();
+					else
+						return run_path;
+				}());
+				job.ProgramString = fmt::format
+				(
+					"cd '{}'; "
+					"( "
+						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
+						"&& export GPUJOB_CUSTOM_COMMAND_CORES={} "
+						"{}"
+						"&& {} "
+						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
+					") 2>&1 | tee -a output.txt",
+					std::regex_replace(run_path, std::regex("'"), R"('"'"')"),
+					std::to_string(cores),
+					gpu.size() ? fmt::format
+					(
+						"&& export GPUJOB_USE_GPU=1 "
+						"&& export CUDA_DEVICE_ORDER=PCI_BUS_ID "
+						"&& export CUDA_VISIBLE_DEVICES={} ",
+						fmt::join(gpu, ",")
+					): ""s,
+					args["custom-command"].as<std::string>()
+				);
+				job.UsingCores = cores;
+				job.UsingGpus = gpu;
+				job.RunInContainer = args["run-in-container"].as<bool>();
 			}
 			else
-				throw std::invalid_argument("program not recognized.");
-			
+				throw std::invalid_argument
+					{fmt::format("program '{}' not recognized.", args["program"].as<std::string>())};
 		}
 		else if (args["action"].as<std::string>() == "list")
 		{
-
+			auto [jobs] = read_out();
+			std::sort(jobs.begin(), jobs.end(), [](auto& a, auto& b)
+			{
+				if (a.Status == b.Status)
+					return a.Id < b.Id;
+				std::map<Job_t::Status_t, unsigned> order =
+				{
+					{Job_t::Status_t::Running, 0},
+					{Job_t::Status_t::Pending, 1},
+					{Job_t::Status_t::Finished, 2}
+				};
+				return order[a.Status] < order[b.Status];
+			});
+			for (auto& job : jobs)
+				std::cout << fmt::format("{} {} {}\n", job.Id, nameof::nameof_enum(job.Status), job.Comment);
+		}
+		else if (args["action"].as<std::string>() == "query")
+		{
+			auto id = args["id"].as<unsigned>();
+			auto [jobs] = read_out();
+			auto it = std::find_if(jobs.begin(), jobs.end(), [&](auto& job)
+			{
+				return job.Id == id;
+			});
+			if (it == jobs.end())
+				throw std::invalid_argument{fmt::format("id {} not found.", id)};
+			std::cout << fmt::format
+			(
+				"ID: {}\nUser: {}\nProgramString: {}\nComment: {}\nUsingCores: {}\nUsingGpus: {}\nStatus: {}\n"
+					"RunInContainer: {}\nRunNow: {}\n",
+				it->Id, it->User, it->ProgramString, it->Comment, it->UsingCores, fmt::join(it->UsingGpus, ","),
+				nameof::nameof_enum(it->Status), it->RunInContainer, it->RunNow
+			);
 		}
 		else if (args["action"].as<std::string>() == "cancel")
 		{
-
+			auto id = args["id"].as<unsigned>();
+			write_in({{}, {{id, ""}}});
 		}
 		else
-			throw std::invalid_argument("action not recognized.");
+			throw std::invalid_argument{fmt::format("action {} not recognized.", args["action"].as<std::string>())};
 	}
 	catch (const std::exception& e)
 	{
