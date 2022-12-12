@@ -711,7 +711,7 @@ std::vector<unsigned> request_cancel_job_from_user()
 						) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 2),
 						ftxui::Button
 						(
-							fmt::format("{} {}", jobs[i].Id, jobs[i].Comment),
+							fmt::format("{} {} {}", jobs[i].Id, nameof::nameof_enum(jobs[i].Status), jobs[i].Comment),
 							[&, i]
 							{
 								detail = ftxui::vbox
@@ -756,7 +756,7 @@ std::vector<unsigned> request_cancel_job_from_user()
 							checked_jobs.insert(jobs[i].Id);
 					screen.ExitLoopClosure()();
 				}),
-				ftxui::Button("删除选中的任务并退出", [&]
+				ftxui::Button("结束选中的任务并退出", [&]
 				{
 					checked_jobs.clear();
 					for (std::size_t i = 0; i < selected.size(); i++)
