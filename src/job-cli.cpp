@@ -12,41 +12,41 @@ int main(int argc, const char** argv)
 	{
 		cxxopts::Options options("job-cli", "A command line interface for the simple job scheduler.");
 		options.add_options()
-			("a,action", "Action to do (\"submit\", \"list\", \"query\" or \"cancel\"). "
+			("action", "Action to do (\"submit\", \"list\", \"query\" or \"cancel\"). "
 				"Use \"list\" to print all submitted jobs, no more arguments is needed. "
 				"Use \"query\" to query detail information of a job, only job id (\"-id\", see below) is needed. "
 				"Use \"cancel\" to cancel a submitted job, only job id (\"-id\", see below) is needed. "
 				"For \"submit\", all the other arguments are needed.", cxxopts::value<std::string>())
 			("id", "Job id, need to be provided only when query or cancel a job.", cxxopts::value<unsigned>())
-			("p,program", "Program to run (\"vasp\", \"lammps\" or \"custom\").",
+			("program", "Program to run (\"vasp\", \"lammps\" or \"custom\").",
 				cxxopts::value<std::string>()->default_value(""))
-			("vve,vasp-version", "VASP version (\"6.3.1\"), need to be provided only when running VASP.",
+			("vasp-version", "VASP version (\"6.3.1\"), need to be provided only when running VASP.",
 				cxxopts::value<std::string>()->default_value(""))
-			("vva,vasp-variant", "VASP Variant (\"std\", \"gam\" or \"ncl\"), "
+			("vasp-variant", "VASP Variant (\"std\", \"gam\" or \"ncl\"), "
 				"need to be provided only when running VASP.",
 				cxxopts::value<std::string>()->default_value(""))
-			("g,gpu", "GPU id to use, separated by comma (for example, \"0,1\").",
-				cxxopts::value<std::vector<unsigned>>()->default_value({}))
-			("mpit,mpi-threads", "Number of MPI threads to use. "
+			("gpu", "GPU id to use, separated by comma (for example, \"0,1\").",
+				cxxopts::value<std::vector<unsigned>>()->default_value(""))
+			("mpi-threads", "Number of MPI threads to use. "
 				"Need to be provided only when running VASP on cpu or LAMMPS.",
 				cxxopts::value<unsigned>()->default_value("0"))
-			("omp,openmp-threads", "Number of OpenMP threads to use. "
+			("openmp-threads", "Number of OpenMP threads to use. "
 				"Need to be provided only when running VASP on CPU. "
 				"Optional when running VASP on GPU (default to 2) or LAMMPS (default to 1).",
 				cxxopts::value<unsigned>()->default_value("0"))
-			("li,lammps-input", "File path of LAMMPS input script. Need to be provided only when running LAMMPS.",
+			("lammps-input", "File path of LAMMPS input script. Need to be provided only when running LAMMPS.",
 				cxxopts::value<std::string>()->default_value(""))
-			("cc,custom-command", "Custom command to run, need to be provided only when select to run custom program.",
+			("custom-command", "Custom command to run, need to be provided only when select to run custom program.",
 				cxxopts::value<std::string>()->default_value(""))
-			("ccc,custom-command-cores",
+			("custom-command-cores",
 				"Number of cores to use, need to be provided only when select to run custom program.",
 				cxxopts::value<unsigned>()->default_value("0"))
-			("rp,run-path", "Run in custom directory (default is in current directory).",
+			("run-path", "Run in custom directory (default is in current directory).",
 				cxxopts::value<std::string>()->default_value(""))
-			("ngs,no-gpu-sf", "Do not append \"-sf gpu\" in LAMMPS commandline.",
+			("no-gpu-sf", "Do not append \"-sf gpu\" in LAMMPS commandline.",
 				cxxopts::value<bool>()->default_value("false"))
-			("rn,run-now", "Run the job immediately.", cxxopts::value<bool>()->default_value("false"))
-			("ric,run-in-container", "Run the job in ubuntu-22.04 container.",
+			("run-now", "Run the job immediately.", cxxopts::value<bool>()->default_value("false"))
+			("run-in-container", "Run the job in ubuntu-22.04 container.",
 				cxxopts::value<bool>()->default_value("false"));
 		
 		auto args = options.parse(argc, argv);
