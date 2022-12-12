@@ -1,4 +1,5 @@
 # include <set>
+# include <regex>
 # include <job.hpp>
 # include <boost/process.hpp>
 # include <nameof.hpp>
@@ -167,24 +168,19 @@ int main()
 						if ((!std::ranges::any_of(job.UsingGpus, [&](auto gpu){return gpu_used.contains(gpu);})
 							&& cpu_used + job.UsingCores <= std::thread::hardware_concurrency()) || job.RunNow)
 						{
-							// systemd-run -M root@.host -P -q -E ENV_NAME sleep 5
-							std::vector<std::string> args = 
-							{
-								"-M"s, fmt::format("{}@{}", job.User, job.RunInContainer ? "ubuntu-22.04"s : ".host"s ),
-								"-P"s, "-q"s, "--user"s,
-							};
+							// sudo -u user aaa='bbb' bash -c ...
+							// sudo -u user ssh -p 1022 127.0.0.1 aaa='bbb' bash -c ...
+							std::vector<std::string> args = {"-u", job.User};
+							if (job.RunInContainer)
+								args.insert(args.end(), {"ssh", "-p", "1022", "127.0.0.1"});
 							for (auto& [name, value] : job.Environment)
-								args.push_back(fmt::format("--setenv={}", name));
+								args.push_back(fmt::format("{}='{}'", name,
+									std::regex_replace(value, std::regex{"'"}, R"(\')")));
 							args.push_back(job.Program);
 							args.insert(args.end(), job.Arguments.begin(), job.Arguments.end());
 
-							boost::process::environment env = boost::this_process::environment();
-							for (auto& [name, value] : job.Environment)
-								env[name] = value;
-
 							std::clog << fmt::format("run job args: {}\n", args);
-							tasks[job.Id] = std::make_unique<boost::process::child>
-								(boost::process::search_path("systemd-run"), boost::process::args(args), env);
+							tasks[job.Id] = std::make_unique<boost::process::child>("sudo", boost::process::args(args));
 
 							std::clog << fmt::format("run job: {} {}\n", job.Id, job.Comment);
 							notify(fmt::format("run job: {} {}", job.Id, job.Comment));
