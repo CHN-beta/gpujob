@@ -776,7 +776,7 @@ std::vector<unsigned> request_cancel_job_from_user()
 
 		std::cout << "\x1b[?1000;1006;1015h" << std::endl;
 		screen.Loop(layout);
-		std::cout << "\x1b[?1000;1006;1015h" << std::endl;
+		std::cout << "\x1b[?1000;1006;1015l" << std::endl;
 	}
 	return {checked_jobs.begin(), checked_jobs.end()};
 }
