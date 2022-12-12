@@ -224,8 +224,6 @@ std::optional<Job_t> request_new_job_detail_from_user()
 		{
 			result.emplace();
 			result->Id = 0;
-			result->Program = "bash";
-			result->Arguments = {"-c"};
 			result->Status = Job_t::Status_t::Pending;
 			result->RunNow = run_now_checked;
 
@@ -273,17 +271,22 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					else
 						return run_path;
 				}());
-				result->Environment = {{"GPUJOB_RUN_PATH", run_path}};
-				result->Arguments.emplace_back(fmt::format
+				result->ProgramString = fmt::format
 				(
-					". /etc/profile.d/modules.sh "
-					"&& module use /opt/intel/oneapi/modulefiles /opt/nvidia/hpc_sdk/modulefiles "
-					"&& module load nvhpc/22.11 mkl/2022.2.1 "
-					"&& mpirun -np {} -x OMP_NUM_THREADS={} -x MKL_THREADING_LAYER=INTEL "
-						"-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} vasp_gpu_{}_{}",
+					"cd '{}'; "
+					"( "
+						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
+						"&& . /etc/profile.d/modules.sh "
+						"&& module use /opt/intel/oneapi/modulefiles /opt/nvidia/hpc_sdk/modulefiles "
+						"&& module load nvhpc/22.11 mkl/2022.2.1 "
+						"&& mpirun -np {} -x OMP_NUM_THREADS={} -x MKL_THREADING_LAYER=INTEL "
+							"-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} vasp_gpu_{}_{} "
+						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
+					") 2>&1 | tee -a output.txt",
+					std::regex_replace(run_path, std::regex("'"), R"('"'"')"),
 					selected_gpus.size(), *openmp_threads, fmt::join(selected_gpus, ","), 
 					vasp_version_internal_names[vasp_version_selected], vasp_variant_names[vasp_variant_selected]
-				));
+				);
 				result->UsingCores = selected_gpus.size() * *openmp_threads;
 				result->UsingGpus = selected_gpus;
 				result->RunInContainer = true;
@@ -312,15 +315,21 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					else
 						return run_path;
 				}());
-				result->Environment = {{"GPUJOB_RUN_PATH", run_path}};
-				result->Arguments.emplace_back(fmt::format
+				result->ProgramString = fmt::format
 				(
-					". /etc/profile.d/modules.sh && module use /opt/intel/oneapi/modulefiles "
-					"&& module load compiler/2022.2.0 mkl/2022.2.0 mpi/2021.7.0 icc/2022.2.0 "
-						"&& mpirun -np {} -genv OMP_NUM_THREADS {} -genv MKL_THREADING_LAYER INTEL vasp_cpu_{}_{}",
+					"cd '{}'; "
+					"( "
+						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
+						"&& . /etc/profile.d/modules.sh "
+						"&& module use /opt/intel/oneapi/modulefiles "
+						"&& module load compiler/2022.2.0 mkl/2022.2.0 mpi/2021.7.0 icc/2022.2.0 "
+						"&& mpirun -np {} -genv OMP_NUM_THREADS {} -genv MKL_THREADING_LAYER INTEL vasp_cpu_{}_{} "
+						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
+					") 2>&1 | tee -a output.txt",
+					std::regex_replace(run_path, std::regex("'"), R"('"'"')"),
 					*mpi_threads, *openmp_threads,
 					vasp_version_internal_names[vasp_version_selected], vasp_variant_names[vasp_variant_selected]
-				));
+				);
 				result->UsingCores = *mpi_threads * *openmp_threads;
 				result->RunInContainer = false;
 			}
@@ -352,23 +361,26 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					else
 						return run_path;
 				}());
-				result->Environment =
-				{
-					{"GPUJOB_RUN_PATH", run_path},
-					{"GPUJOB_LAMMPS_INPUT", lammps_input_text}
-				};
-				result->Arguments.emplace_back(fmt::format
+				result->ProgramString = fmt::format
 				(
-					". /etc/profile.d/lammps.sh && mpirun -n {} -x OMP_NUM_THREADS={} {}lmp -in $GPUJOB_LAMMPS_INPUT{}",
+					"cd '{}'; "
+					"( "
+						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
+						"&& . /etc/profile.d/lammps.sh "
+						"&& mpirun -n {} -x OMP_NUM_THREADS={} {}lmp -in '{}'{}",
+						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
+					") 2>&1 | tee -a output.txt",
+					std::regex_replace(run_path, std::regex("'"), R"('"'"')"),
 					*mpi_threads, *openmp_threads,
 					gpu_device_use_checked
 						? fmt::format("-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} ",
 							fmt::join(selected_gpus, ","))
 						: ""s,
+					std::regex_replace(lammps_input_text, std::regex("'"), R"('"'"')"),
 					gpu_device_use_checked
 						? fmt::format("{} -pk gpu {}", no_gpu_sf_checked ? ""s : " -sf gpu"s, selected_gpus.size())
 						: ""s
-				));
+				);
 				result->UsingCores = *mpi_threads * *openmp_threads;
 				result->UsingGpus = selected_gpus;
 				result->RunInContainer = false;
@@ -398,35 +410,33 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					else
 						return run_path;
 				}());
-				result->Environment =
-				{
-					{"GPUJOB_RUN_PATH", run_path},
-					{"GPUJOB_CUSTOM_COMMAND", custom_command_text},
-					{"GPUJOB_CUSTOM_COMMAND_CORES", std::to_string(*cores)}
-				};
-				if (gpu_device_use_checked)
-				{
-					result->Environment.emplace("GPUJOB_USE_GPU", "1");
-					result->Environment.emplace("CUDA_DEVICE_ORDER", "PCI_BUS_ID");
-					result->Environment.emplace("CUDA_VISIBLE_DEVICES",
-						fmt::format("{}", fmt::join(selected_gpus, ",")));
-				}
-				result->Arguments.emplace_back("$GPUJOB_CUSTOM_COMMAND");
+				result->ProgramString = fmt::format
+				(
+					"cd '{}'; "
+					"( "
+						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
+						"&& export GPUJOB_CUSTOM_COMMAND_CORES={} "
+						"{}"
+						"&& {} "
+						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
+					") 2>&1 | tee -a output.txt",
+					std::regex_replace(run_path, std::regex("'"), R"('"'"')"),
+					std::to_string(*cores),
+					gpu_device_use_checked ? fmt::format
+					(
+						"&& export GPUJOB_USE_GPU=1 "
+						"&& export CUDA_DEVICE_ORDER=PCI_BUS_ID "
+						"&& export CUDA_VISIBLE_DEVICES={} ",
+						fmt::join(selected_gpus, ",")
+					): ""s,
+					custom_command_text
+				);
 				result->UsingCores = *cores;
 				result->UsingGpus = selected_gpus;
 				result->RunInContainer = run_in_container_checked;
 			}
 			else
 				std::unreachable();
-
-			// 包装命令
-			result->Arguments[1] = fmt::format
-			(
-				"cd $GPUJOB_RUN_PATH "
-				"&& ( echo start at $(date '+%Y-%m-%d %H:%M:%S') && {} && echo end at $(date '+%Y-%m-%d %H:%M:%S') ) "
-					"2>&1 | tee -a output.txt",
-				result->Arguments[1]
-			);
 			return {};
 		};
 		if (auto message = check_and_set_result())
@@ -706,22 +716,9 @@ std::vector<unsigned> request_cancel_job_from_user()
 								(
 									ftxui::hbox(ftxui::text("ID: "), ftxui::paragraph(std::to_string(jobs[i].Id))),
 									ftxui::hbox(ftxui::text("User: "), ftxui::paragraph(jobs[i].User)),
-									ftxui::hbox(ftxui::text("Program: "), ftxui::paragraph(jobs[i].Program)),
+									ftxui::hbox(ftxui::text("ProgramString: "),
+										ftxui::paragraph(jobs[i].ProgramString)),
 									ftxui::hbox(ftxui::text("Comment: "), ftxui::paragraph(jobs[i].Comment)),
-									ftxui::hbox(ftxui::text("Environment: "), [&]
-									{
-										std::vector<ftxui::Element> envs;
-										for (auto& [key, value] : jobs[i].Environment)
-											envs.push_back(ftxui::paragraph(fmt::format("{} = {}", key, value)));
-										return ftxui::vbox(envs);
-									}()),
-									ftxui::hbox(ftxui::text("Arguments: "), [&]
-									{
-										std::vector<ftxui::Element> args;
-										for (auto& arg : jobs[i].Arguments)
-											args.push_back(ftxui::paragraph(arg));
-										return ftxui::vbox(args);
-									}()),
 									ftxui::hbox(ftxui::text("UsingCores: "),
 										ftxui::paragraph(std::to_string(jobs[i].UsingCores))),
 									ftxui::hbox(ftxui::text("UsingGpus: "), [&]

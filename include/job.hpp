@@ -26,9 +26,7 @@ struct Job_t
 // 考虑到特殊字符的问题, 涉及到用户输入的字符串参数, 都用环境变量传入而不是直接传入
 {
 	unsigned Id;
-	std::string User, Program, Comment;
-	std::map<std::string, std::string> Environment;
-	std::vector<std::string> Arguments;
+	std::string User, ProgramString, Comment;
 	unsigned UsingCores;
 	std::vector<unsigned> UsingGpus;
 	enum class Status_t {Pending, Running, Finished} Status;
@@ -37,7 +35,7 @@ struct Job_t
 
 	template <class Archive> void serialize(Archive & ar)
 	{
-		ar(Id, User, Program, Comment, Environment, Arguments, UsingCores, UsingGpus, Status, RunInContainer, RunNow);
+		ar(Id, User, ProgramString, Comment, UsingCores, UsingGpus, Status, RunInContainer, RunNow);
 	}
 };
 

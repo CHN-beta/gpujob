@@ -87,8 +87,8 @@ int main()
 					jobs.push_back(job);
 					std::clog << fmt::format
 					(
-						"new job: {} {} {} {} {} {} {} {} {} {} {}\n",
-						job.Id, job.User, job.Program, job.Comment, job.Environment, job.Arguments, job.UsingCores,
+						"new job: {} {} {} {} {} {} {} {} {}\n",
+						job.Id, job.User, job.ProgramString, job.Comment, job.UsingCores,
 						job.UsingGpus, nameof::nameof_enum(job.Status), job.RunInContainer, job.RunNow
 					);
 					notify(fmt::format("new job: {} {}", job.Id, job.Comment));
@@ -169,20 +169,17 @@ int main()
 						if ((!std::ranges::any_of(job.UsingGpus, [&](auto gpu){return gpu_used.contains(gpu);})
 							&& cpu_used + job.UsingCores <= std::thread::hardware_concurrency()) || job.RunNow)
 						{
-							// sudo -u user aaa=bbb bash -c ...
-							// sudo -u user ssh -p 1022 127.0.0.1 aaa=bbb bash -c ...
-							std::vector<std::string> args = {"-u", job.User};
+							// runuser -u chn -- ssh -p 1022 127.0.0.1 ...
+							// runuser -c -u chn -- ...
+							std::vector<std::string> args;
 							if (job.RunInContainer)
-								args.insert(args.end(), {"ssh", "-p", "1022", "127.0.0.1"});
-							for (auto& [name, value] : job.Environment)
-								args.push_back(fmt::format("{}={}", name, value));
-							args.push_back(job.Program);
-							args.insert(args.end(), job.Arguments.begin(), job.Arguments.end());
-
+								args = {"-u", job.User, "--", "ssh", "-p", "1022", "127.0.0.1", job.ProgramString};
+							else
+								args = {"-c", "-u", job.User, "--", job.ProgramString};
 							std::clog << fmt::format("run job args: {}\n", args);
 							tasks[job.Id] = std::make_unique<boost::process::child>
 							(
-								boost::process::search_path("sudo"), boost::process::args(args),
+								boost::process::search_path("runuser"), boost::process::args(args),
 								boost::process::std_out > stderr, boost::process::std_err > stderr
 							);
 
