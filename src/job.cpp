@@ -660,7 +660,9 @@ std::optional<Job_t> request_new_job_detail_from_user()
 			}
 			return event == ftxui::Event::Return;
 		});
+	std::cout << "\x1b[?1000;1006;1015h" << std::endl;
     screen.Loop(layout);
+	std::cout << "\x1b[?1000;1006;1015l" << std::endl;
 	return result;
 }
 
@@ -771,7 +773,9 @@ std::vector<unsigned> request_cancel_job_from_user()
 			ftxui::Renderer([&]{return ftxui::window(ftxui::text("详细信息"), detail);})
 		});
 
+		std::cout << "\x1b[?1000;1006;1015h" << std::endl;
 		screen.Loop(layout);
+		std::cout << "\x1b[?1000;1006;1015h" << std::endl;
 	}
 	return {checked_jobs.begin(), checked_jobs.end()};
 }
