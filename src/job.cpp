@@ -367,7 +367,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					"( "
 						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
 						"&& . /etc/profile.d/lammps.sh "
-						"&& mpirun -n {} -x OMP_NUM_THREADS={} {}lmp -in '{}'{}",
+						"&& mpirun -n {} -x OMP_NUM_THREADS={} {}lmp -in '{}'{}"
 						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
 					") 2>&1 | tee -a output.txt",
 					std::regex_replace(run_path, std::regex("'"), R"('"'"')"),
