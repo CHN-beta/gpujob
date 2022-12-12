@@ -168,14 +168,13 @@ int main()
 						if ((!std::ranges::any_of(job.UsingGpus, [&](auto gpu){return gpu_used.contains(gpu);})
 							&& cpu_used + job.UsingCores <= std::thread::hardware_concurrency()) || job.RunNow)
 						{
-							// sudo -u user aaa='bbb' bash -c ...
-							// sudo -u user ssh -p 1022 127.0.0.1 aaa='bbb' bash -c ...
+							// sudo -u user aaa=bbb bash -c ...
+							// sudo -u user ssh -p 1022 127.0.0.1 aaa=bbb bash -c ...
 							std::vector<std::string> args = {"-u", job.User};
 							if (job.RunInContainer)
 								args.insert(args.end(), {"ssh", "-p", "1022", "127.0.0.1"});
 							for (auto& [name, value] : job.Environment)
-								args.push_back(fmt::format("{}='{}'", name,
-									std::regex_replace(value, std::regex{"'"}, R"(\')")));
+								args.push_back(fmt::format("{}={}", name, value));
 							args.push_back(job.Program);
 							args.insert(args.end(), job.Arguments.begin(), job.Arguments.end());
 
