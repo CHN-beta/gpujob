@@ -117,6 +117,7 @@ int main()
 					else
 						std::clog << fmt::format("remove job {} not found\n", job);
 				}
+				std::erase_if(tasks, [&](auto& task){return task.second.get() == nullptr;});
 				jobs_changed = true;
 			}
 
