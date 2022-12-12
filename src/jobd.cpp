@@ -180,7 +180,8 @@ int main()
 							args.insert(args.end(), job.Arguments.begin(), job.Arguments.end());
 
 							std::clog << fmt::format("run job args: {}\n", args);
-							tasks[job.Id] = std::make_unique<boost::process::child>("sudo", boost::process::args(args));
+							tasks[job.Id] = std::make_unique<boost::process::child>
+								(boost::process::search_path("sudo"), boost::process::args(args));
 
 							std::clog << fmt::format("run job: {} {}\n", job.Id, job.Comment);
 							notify(fmt::format("run job: {} {}", job.Id, job.Comment));
