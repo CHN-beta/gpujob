@@ -744,7 +744,7 @@ std::vector<unsigned> request_cancel_job_from_user()
 						)
 					}));
 				return ftxui::Container::Vertical(columns);
-			}() | ftxui::vscroll_indicator | ftxui::frame
+			}() | ftxui::vscroll_indicator | ftxui::frame | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 10)
 				| ftxui::Renderer([&](ftxui::Element inner){return ftxui::window(ftxui::text("任务列表"), inner);}),
 			ftxui::Container::Horizontal
 			({
