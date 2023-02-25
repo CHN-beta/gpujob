@@ -429,6 +429,17 @@ std::optional<Job_t> request_new_job_detail_from_user()
 	};
 	auto submit_button = ftxui::Button("Submit (Enter)", [&]{if (try_submit()) screen.ExitLoopClosure()();});
 
+	// 为了putty可以正常显示，需要将 ▣/☐ 换为 [ ]/[*]
+	auto checkbox_option = ftxui::CheckboxOption::Simple();
+	checkbox_option.transform = [](const ftxui::EntryState& s)
+	{
+    	auto prefix = ftxui::text(s.state ? "[X] " : "[ ] ");
+    	auto t = ftxui::text(s.label);
+    	if (s.active) t |= ftxui::bold;
+    	if (s.focused) t |= ftxui::inverted;
+    	return ftxui::hbox({prefix, t});
+  	};
+
     auto layout = ftxui::Container::Vertical
 	({
 		// 提交新任务
@@ -454,7 +465,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 				// GPU 加速
 				ftxui::Container::Vertical
 				({
-					ftxui::Checkbox("Use GPU acceleration", &gpu_device_use_checked)
+					ftxui::Checkbox("Use GPU acceleration", &gpu_device_use_checked, checkbox_option)
 					| ftxui::Hoverable([&](bool set_or_unset)
 					{
 						if (program_internal_names[program_selected] == "vasp")
@@ -473,7 +484,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					{
 						auto gpus = ftxui::Container::Vertical({});
 						for (auto& [name, checked, index] : gpu_device_checked)
-							gpus->Add(ftxui::Checkbox(name, &checked)
+							gpus->Add(ftxui::Checkbox(name, &checked, checkbox_option)
 								| ftxui::Renderer([&](ftxui::Element inner)
 									{return ftxui::hbox(ftxui::text("  "), inner);})
 								| ftxui::Hoverable([&](bool set_or_unset)
@@ -561,7 +572,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 			({
 				ftxui::Container::Horizontal
 				({
-					ftxui::Checkbox("Custom path: ", &custom_path_checked),
+					ftxui::Checkbox("Custom path: ", &custom_path_checked, checkbox_option),
 					ftxui::Input(&custom_path_text, "") | ftxui::underlined
 						| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
 						| ftxui::flex_shrink
@@ -570,7 +581,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());}),
 				ftxui::Container::Horizontal
 				({
-					ftxui::Checkbox("Custom OpenMP threads number: ", &custom_openmp_threads_checked),
+					ftxui::Checkbox("Custom OpenMP threads number: ", &custom_openmp_threads_checked, checkbox_option),
 					ftxui::Input(&custom_openmp_threads_text, "") | ftxui::underlined
 						| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
 						| ftxui::flex_shrink | ftxui::Maybe([&]{return custom_openmp_threads_checked;})
@@ -590,15 +601,15 @@ std::optional<Job_t> request_new_job_detail_from_user()
 						return (program_internal_names[program_selected] == "vasp" && gpu_device_use_checked)
 							|| program_internal_names[program_selected] == "lammps";
 					}),
-				ftxui::Checkbox("Do not append \"-sf gpu\" to the command line", &no_gpu_sf_checked)
+				ftxui::Checkbox("Do not append \"-sf gpu\" to the command line", &no_gpu_sf_checked, checkbox_option)
 					| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&no_gpu_sf_help_text)))
 					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
 					| ftxui::Maybe([&]
 						{return program_internal_names[program_selected] == "lammps" && gpu_device_use_checked;}),
-				ftxui::Checkbox("Run immeditally", &run_now_checked)
+				ftxui::Checkbox("Run immeditally", &run_now_checked, checkbox_option)
 					| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&run_now_help_text)))
 					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());}),
-				ftxui::Checkbox("Run in Ubuntu 22.04 container", &run_in_container_checked)
+				ftxui::Checkbox("Run in Ubuntu 22.04 container", &run_in_container_checked, checkbox_option)
 					| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&run_in_container_help_text)))
 					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
 					| ftxui::Maybe([&]{return program_internal_names[program_selected] == "custom";})
@@ -675,6 +686,17 @@ std::vector<unsigned> request_cancel_job_from_user()
 			return order[a.Status] < order[b.Status];
 		});
 
+		// 为了putty可以正常显示，需要将 ▣/☐ 换为 [ ]/[*]
+		auto checkbox_option = ftxui::CheckboxOption::Simple();
+		checkbox_option.transform = [](const ftxui::EntryState& s)
+		{
+			auto prefix = ftxui::text(s.state ? "[X] " : "[ ] ");
+			auto t = ftxui::text(s.label);
+			if (s.active) t |= ftxui::bold;
+			if (s.focused) t |= ftxui::inverted;
+			return ftxui::hbox({prefix, t});
+		};
+
 		auto layout = ftxui::Container::Vertical
 		({
 			[&]
@@ -685,7 +707,7 @@ std::vector<unsigned> request_cancel_job_from_user()
 					({
 						(
 							(jobs[i].User == getenv("USER") && jobs[i].Status != Job_t::Status_t::Finished)
-								? ftxui::Checkbox("", &selected[i])
+								? ftxui::Checkbox("", &selected[i], checkbox_option)
 								: ftxui::Renderer([]{return ftxui::emptyElement();})
 						) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 2),
 						ftxui::Button
