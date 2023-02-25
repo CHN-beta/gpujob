@@ -709,7 +709,7 @@ std::vector<unsigned> request_cancel_job_from_user()
 							(jobs[i].User == getenv("USER") && jobs[i].Status != Job_t::Status_t::Finished)
 								? ftxui::Checkbox("", &selected[i], checkbox_option)
 								: ftxui::Renderer([]{return ftxui::emptyElement();})
-						) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 2),
+						) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 4),
 						ftxui::Button
 						(
 							fmt::format("{} {} {}", jobs[i].Id, nameof::nameof_enum(jobs[i].Status), jobs[i].Comment),
