@@ -70,7 +70,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
     auto screen = ftxui::ScreenInteractive::Fullscreen();
 
 	// 基本信息
-	std::vector<std::string> program_names {"VASP", "LAMMPS", "自定义程序"};
+	std::vector<std::string> program_names {"VASP", "LAMMPS", "Custom Command"};
 	std::vector<std::string> program_internal_names {"vasp", "lammps", "custom"};
 	int program_selected = 0;
 	std::vector<std::string> vasp_version_names {"6.3.1"};
@@ -119,53 +119,30 @@ std::optional<Job_t> request_new_job_detail_from_user()
 						gpu_pending[gpu]++;
 		}
 		for (auto& gpu : gpu_devices)
-			gpu_device_checked.emplace_back(fmt::format("{} (ID: {}, {} 运行, {} 等待)",
+			gpu_device_checked.emplace_back(fmt::format("{} (ID: {}, {} running, {} pending)",
 				gpu.second, gpu.first, gpu_running[gpu.first], gpu_pending[gpu.first]), false, gpu.first);
 	}
 
 	// 帮助文本
-	std::string original_help_text = "拿起鼠标, 哪里需要点哪里. 这里会给出提示信息.";
+	std::string original_help_text = "Move the mouse cursor to the desired position, and a help message will be displayed. If you're using an outdated terminal like Putty (that doesn't report real-time mouse position), the help message won't appear until you click on it. The help text is in English instead of Chinese, as the width of Chinese characters are not rendered well in some cases like in Putty.";
 	std::string help_text = original_help_text;
-	std::string program_help_text = "选择你要运行的程序.";
-	std::string vasp_version_help_text = "选择你要运行的 VASP 版本. "
-		"如果是新的项目, 建议用最新的版本; 如果是继续之前的项目, 之前用什么版本现在还用什么就可以了.";
-	std::string vasp_variant_help_text = "选择你要运行的 VASP 版本. 通常使用 std 即可. "
-		"当 k 点只有 gamma 点时, 使用 gam 计算更快. ncl 我没有用过, 似乎与自旋-轨道耦合有关.";
-	std::string gpu_device_use_help_text_vasp = "是否使用 GPU 版本的 VASP. "
-		"对于 VASP, 不推荐使用多个 GPU, 你会发现速度反而变慢; 但选了多个 GPU 也不会出错.";
-	std::string gpu_device_use_help_text_lammps = "是否使用 GPU 加速 LAMMPS 的运行. "
-		"一般勾选此项和下面的一个或多个 GPU, 即可要求 LAMMPS 使用 GPU. "
-		"队列系统会在命令行中追加 \"-sf gpu -pk gpu n\" 来要求 LAMMPS 使用 GPU. "
-		"如果你希望手动指定哪些 pair_style 使用 GPU 而哪些不使用, 可以在高级设置中勾选 \"不在命令行中增加 '-sf gpu'\", "
-		"然后手动在输入文件中的一部分 pair_style 命令中加上 \"/gpu\".";
-	std::string gpu_device_use_help_text_custom = "是否使用 GPU 加速自定义程序的运行. "
-		"勾选后, 队列系统会导出环境变量 GPUJOB_USE_GPU=1 和 CUDA_DEVICE_ORDER=PCI_BUS_ID, "
-		"以及 CUDA_VISIBLE_DEVICES（其值为逗号分隔的 id, 详细见嘤伟达的文档）. 即使不勾选, 队列系统也不会真的限制程序对 GPU 的访问.";
-	std::string mpi_openmp_threads_help_text_vasp_cpu = "VASP 支持两个层面的并行, 一个叫 MPI, 一个叫 OpenMP, "
-		"实际占用 CPU 的核心数等于 MPI 线程数乘以 OpenMP 线程数. 将两者取为相近的数值, 性能更好. "
-		"例如, 将 MPI 线程数和 OpenMP 线程数都设置为 4, 性能比 MPI 线程数取为 16、OpenMP 线程数取为 1 的性能要好, "
-		"尽管两种设置都占用了 16 个核心.";
-	std::string mpi_threads_help_text_lammps = "LAMMPS 通常只使用 MPI 层面的并行, 即此处设置的值就是实际占用 CPU 的核心数. "
-		"如果你确实需要使用 OpenMP 层面的并行, 可以在高级设置中勾选 \"使用 OpenMP 并行\".";
-	std::string lammps_input_help_text = "在这里指定 LAMMPS 的输入文件.";
-	std::string custom_command_help_text = "在这里输入自定义的命令. 这里输入的内容会被导出为 GPUJOB_CUSTOM_COMMAND 环境变量, "
-		"并被 bash 解析执行（bash -c $GPUJOB_CUSTOM_COMMAND）.";
-	std::string custom_command_cores_help_text = "在这里输入要占用的 CPU 核心数. "
-		"这里输入的内容会被导出为 GPUJOB_CUSTOM_COMMAND_CORES 环境变量, 并据此排队; 但队列系统实际不会限制资源的使用.";
-	std::string custom_path_help_text = "自定义程序运行的起始目录. 默认为当前目录. "
-		"注意, VASP GPU 版本会在 ubuntu 22.04 容器中运行. 容器中, 宿主机的 /home 被挂载到 /hosthome, 不能访问宿主机的其它目录. ";
-	std::string custom_openmp_threads_help_text_lammps = "我会导出 OMP_NUM_THREADS 环境变量, "
-		"但不会在命令行中增加 \"-sf omp\", 你需要在输入文件中特定 pair_style 命令中加上 \"/omp\".";
-	std::string custom_openmp_threads_help_text_vasp_gpu = "VASP 支持两个层面的并行, 一个叫 MPI, 一个叫 OpenMP. "
-		"GPU 版本的 VASP 要求每个 MPI 线程对应一个 GPU, 因此实际占用 CPU 的核心数等于此处设置的 OpenMP 线程数乘以选定的 GPU 个数. "
-		"尽管原则上没有限制, 但实际中我发现 OpenMP 线程数取为 2 时性能比 1 略好, 取为 3 或以上时则会慢得多. "
-		"因此如果没有特殊需求, 不要修改默认值.";
-	std::string no_gpu_sf_help_text = "勾选此选项后, 不会在 LAMMPS 的参数中增加 \"-sf gpu\". "
-		"这时你需要手动在恰当的 pair_style 后加上 /gpu.";
-	std::string run_now_help_text = "不排队, 立即开始运行. "
-		"有时前面有一些比较大的任务, 而这个任务很小, 你就可以勾选此选项, 让它立即开始运行, 不用一直干等着.";
-	std::string run_in_container_help_text = "在 ububtu-22.04 容器中运行自定义程序. VASP 的 GPU 版本需要在容器里运行. "
-		"宿主机的 /home 在容器中会被挂载为 /hosthome.";
+	std::string program_help_text = "Choose the program you want to run.";
+	std::string vasp_version_help_text = "Choose the version of VASP you want to run. For new projects, it is recommended to use the latest version; for continuing old projects, use the same version as before.";
+	std::string vasp_variant_help_text = "Choose the variant of VASP you want to run. Usually \"std\" is enough. When k points are only gamma point, \"gam\" is faster. I haven't used \"ncl\", which seems to be related to spin-orbit coupling, only use it if you know what it is for.";
+	std::string gpu_device_use_help_text_vasp = "Whether to use GPU version of VASP. For VASP, it is not recommended to use multiple GPUs, you will find that the speed is actually slower; but selecting multiple GPUs will not cause errors.";
+	std::string gpu_device_use_help_text_lammps = "Whether to use GPU acceleration for LAMMPS. Generally, check this and one or more of the following GPUs, and LAMMPS will use GPU. The queue system will add \"-sf gpu -pk gpu n\" to the command line to request LAMMPS to use GPU. If you want to manually specify which pair_style uses GPU and which does not, you can check \"Do not add '-sf gpu' to the command line\", and then manually add \"/gpu\" to some pair_style commands in the input file.";
+	std::string gpu_device_use_help_text_custom = "Whether to use GPU acceleration for custom programs. If checked, the queue system will export environment variables GPUJOB_USE_GPU=1 and CUDA_DEVICE_ORDER=PCI_BUS_ID, and CUDA_VISIBLE_DEVICES (its value is a comma-separated list of ids, see NVIDIA's documentation for details). Even if not checked, the queue system will not really limit the program's access to GPU.";
+	std::string mpi_openmp_threads_help_text_vasp_cpu = "VASP supports two levels of parallelism, one called MPI, the other called OpenMP, the actual number of CPU cores occupied is the product of the MPI thread number and the OpenMP thread number. According to my test, taking the two as close as possible, the performance is better. For example, if the MPI thread number and the OpenMP thread number are both set to 4, the performance is better than the MPI thread number is 16, the OpenMP thread number is 1, although both settings occupy 16 cores.";
+	std::string mpi_threads_help_text_lammps = "LAMMPS usually only uses MPI-level parallelism, i.e. the value set here is the actual number of CPU cores occupied. If you really need to use OpenMP-level parallelism, you can check \"Use OpenMP parallel\" in the advanced settings.";
+	std::string lammps_input_help_text = "Specify the input file for LAMMPS here.";
+	std::string custom_command_help_text = "Input the custom command here. The content entered here will be exported as the GPUJOB_CUSTOM_COMMAND environment variable, and will be parsed and executed by bash (\"bash -c $GPUJOB_CUSTOM_COMMAND\").";
+	std::string custom_command_cores_help_text = "Input the number of CPU cores to be occupied here. The content entered here will be exported as the GPUJOB_CUSTOM_COMMAND_CORES environment variable, and will be parsed and queued according to it; but the queue system will not actually limit the use of resources.";
+	std::string custom_path_help_text = "Specify the starting directory of the custom program. The default is the current directory. Note that the GPU version of VASP will run in a ubuntu 22.04 container. In the container, the host's /home is mounted to /hosthome, and cannot access other directories on the host.";
+	std::string custom_openmp_threads_help_text_lammps = "I will export OMP_NUM_THREADS environment variable, but will not add \"-sf omp\" to the command line, you need to add \"/omp\" to the pair_style command in the input file.";
+	std::string custom_openmp_threads_help_text_vasp_gpu = "VASP supports two levels of parallelism, one called MPI, the other called OpenMP. The GPU version of VASP requires one MPI thread to correspond to one GPU, so the actual number of CPU cores occupied is the product of the OpenMP thread number and the number of GPUs selected. Although there is no limit in principle, in practice I found that the performance is slightly better when the OpenMP thread number is 2 than it is 1, and when the OpenMP thread number is 3 or more, it will be much slower. Therefore, if there is no special need, do not modify the default value.";
+	std::string no_gpu_sf_help_text = "Check this option to not add \"-sf gpu\" to the command line. You need to manually add \"/gpu\" to some pair_style commands in the input file.";
+	std::string run_now_help_text = "Run the task immediately without queuing. Sometimes there are some big tasks in front of you, and this task is very small, you can check this option, let it run immediately, without waiting.";
+	std::string run_in_container_help_text = "Run the task in a container. The GPU version of VASP will run in a ubuntu 22.04 container. In the container, the host's /home is mounted to /hosthome, and cannot access other directories on the host.";
 	auto set_help_text = [&](std::experimental::observer_ptr<const std::string> content)
 	{
 		static std::map<std::experimental::observer_ptr<const std::string>, unsigned> enabled_help;
@@ -237,7 +214,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					if (checked)
 						selected_gpus.emplace_back(index);
 				if (selected_gpus.empty())
-					return "请至少选择一个 GPU 设备.";
+					return "Select at least one GPU.";
 			}
 
 			// 分任务类别来设置: vasp cpu, vasp gpu, lammps, custom
@@ -249,7 +226,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 				{
 					auto openmp_threads = try_to_convert_to_positive_integer(openmp_threads_text);
 					if (!openmp_threads)
-						return "自定义 OpenMP 线程数必须为正整数.";
+						return "Custom OpenMP threads must be a positive integer.";
 				}
 
 				// 获取任务的执行路径
@@ -262,7 +239,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					if (std::smatch match; std::regex_match(run_path, match, std::regex("/home(/.*)?")))
 						run_path = fmt::format("/hosthome{}", match[1].str());
 					else
-						return "GPU 版本的 vasp 需要在 ubuntu-22.04 容器中运行, 容器中不能访问宿主机除了 /home 下以外的文件.";
+						return "GPU version of vasp can only be run in a container, and the container cannot access files on the host except for files in /home.";
 				}
 
 				result->Comment = fmt::format("{} {}", std::getenv("USER"), [&]
@@ -297,10 +274,10 @@ std::optional<Job_t> request_new_job_detail_from_user()
 				// 获取 mpi 和 openmp 线程数
 				auto mpi_threads = try_to_convert_to_positive_integer(mpi_threads_text);
 				if (!mpi_threads)
-					return "MPI 线程数必须为正整数.";
+					return "MPI threads number must be a positive integer.";
 				auto openmp_threads = try_to_convert_to_positive_integer(openmp_threads_text);
 				if (!openmp_threads)
-					return "OpenMP 线程数必须为正整数.";
+					return "OpenMP threads number must be a positive integer.";
 
 				// 获取任务的执行路径
 				std::string run_path;
@@ -339,13 +316,13 @@ std::optional<Job_t> request_new_job_detail_from_user()
 				// 获取 mpi 和 openmp 线程数
 				auto mpi_threads = try_to_convert_to_positive_integer(mpi_threads_text);
 				if (!mpi_threads)
-					return "MPI 线程数必须为正整数.";
+					return "MPI threads number must be a positive integer.";
 				std::optional<unsigned> openmp_threads = 1;
 				if (custom_openmp_threads_checked)
 				{
 					openmp_threads = try_to_convert_to_positive_integer(openmp_threads_text);
 					if (!openmp_threads)
-						return "OpenMP 线程数必须为正整数.";
+						return "OpenMP threads number must be a positive integer.";
 				}
 
 				// 获取任务的执行路径
@@ -391,7 +368,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 				// 获取占用的 CPU 核数
 				auto cores = try_to_convert_to_positive_integer(custom_command_cores_text);
 				if (!cores)
-					return "占用的 CPU 核数必须为正整数.";
+					return "Occupied CPU cores number must be a positive integer.";
 
 				// 获取任务的执行路径
 				std::string run_path;
@@ -450,7 +427,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 		else
 			return true;
 	};
-	auto submit_button = ftxui::Button("提交任务 (Enter)", [&]{if (try_submit()) screen.ExitLoopClosure()();});
+	auto submit_button = ftxui::Button("Submit (Enter)", [&]{if (try_submit()) screen.ExitLoopClosure()();});
 
     auto layout = ftxui::Container::Vertical
 	({
@@ -477,7 +454,8 @@ std::optional<Job_t> request_new_job_detail_from_user()
 				// GPU 加速
 				ftxui::Container::Vertical
 				({
-					ftxui::Checkbox("使用 GPU 加速", &gpu_device_use_checked) | ftxui::Hoverable([&](bool set_or_unset)
+					ftxui::Checkbox("Use GPU acceleration", &gpu_device_use_checked)
+					| ftxui::Hoverable([&](bool set_or_unset)
 					{
 						if (program_internal_names[program_selected] == "vasp")
 							set_help_text(std::experimental::make_observer(&gpu_device_use_help_text_vasp))
@@ -523,7 +501,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 						ftxui::Input(&mpi_threads_text, "") | ftxui::underlined
 							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
 							| ftxui::Renderer([&](ftxui::Element inner)
-								{return ftxui::hbox(ftxui::text("MPI 线程数: "), inner);})
+								{return ftxui::hbox(ftxui::text("MPI thread number: "), inner);})
 							| ftxui::Hoverable([&](bool set_or_unset)
 							{
 								if (program_internal_names[program_selected] == "vasp" && !gpu_device_use_checked)
@@ -544,7 +522,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 						ftxui::Input(&openmp_threads_text, "") | ftxui::underlined
 							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
 							| ftxui::Renderer([&](ftxui::Element inner)
-								{return ftxui::hbox(ftxui::text("OpenMP 线程数: "), inner);})
+								{return ftxui::hbox(ftxui::text("OpenMP thread number: "), inner);})
 							| ftxui::Hoverable(set_help_text(std::experimental::make_observer
 								(&mpi_openmp_threads_help_text_vasp_cpu)))
 							| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
@@ -554,7 +532,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					ftxui::Input(&lammps_input_text, "") | ftxui::underlined
 						| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
 						| ftxui::Renderer([&](ftxui::Element inner)
-							{return ftxui::hbox(ftxui::text("LAMMPS 输入文件: "), inner);})
+							{return ftxui::hbox(ftxui::text("LAMMPS input file: "), inner);})
 						| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&lammps_input_help_text)))
 						| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
 						| ftxui::Maybe([&]{return program_internal_names[program_selected] == "lammps";}),
@@ -563,27 +541,27 @@ std::optional<Job_t> request_new_job_detail_from_user()
 						ftxui::Input(&custom_command_text, "") | ftxui::underlined
 							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
 							| ftxui::Renderer([&](ftxui::Element inner)
-								{return ftxui::hbox(ftxui::text("自定义命令: "), inner);})
+								{return ftxui::hbox(ftxui::text("Custom command: "), inner);})
 							| ftxui::flex_shrink
 							| ftxui::Hoverable(set_help_text(std::experimental::make_observer
 								(&custom_command_help_text))),
 						ftxui::Input(&custom_command_cores_text, "") | ftxui::underlined
 							| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
 							| ftxui::Renderer([&](ftxui::Element inner)
-								{return ftxui::hbox(ftxui::text("占用 CPU 核心数: "), inner);})
+								{return ftxui::hbox(ftxui::text("Occupied CPU cores number: "), inner);})
 							| ftxui::flex_shrink
 							| ftxui::Hoverable(set_help_text(std::experimental::make_observer
 								(&custom_command_cores_help_text)))
 					}) | ftxui::Maybe([&]{return program_internal_names[program_selected] == "custom";})
 				})
 			}) | ftxui::Renderer([&](ftxui::Element inner)
-				{return ftxui::vbox(ftxui::text("基本信息") | ftxui::bgcolor(ftxui::Color::Blue), inner);}),
+				{return ftxui::vbox(ftxui::text("Basic settings") | ftxui::bgcolor(ftxui::Color::Blue), inner);}),
 			// 高级设置
 			ftxui::Container::Vertical
 			({
 				ftxui::Container::Horizontal
 				({
-					ftxui::Checkbox("自定义路径：", &custom_path_checked),
+					ftxui::Checkbox("Custom path: ", &custom_path_checked),
 					ftxui::Input(&custom_path_text, "") | ftxui::underlined
 						| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 30)
 						| ftxui::flex_shrink
@@ -592,7 +570,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());}),
 				ftxui::Container::Horizontal
 				({
-					ftxui::Checkbox("自定义 OpenMP 线程数：", &custom_openmp_threads_checked),
+					ftxui::Checkbox("Custom OpenMP threads number: ", &custom_openmp_threads_checked),
 					ftxui::Input(&custom_openmp_threads_text, "") | ftxui::underlined
 						| ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 3)
 						| ftxui::flex_shrink | ftxui::Maybe([&]{return custom_openmp_threads_checked;})
@@ -612,29 +590,29 @@ std::optional<Job_t> request_new_job_detail_from_user()
 						return (program_internal_names[program_selected] == "vasp" && gpu_device_use_checked)
 							|| program_internal_names[program_selected] == "lammps";
 					}),
-				ftxui::Checkbox("不要在命令行中追加 \"-sf gpu\"", &no_gpu_sf_checked)
+				ftxui::Checkbox("Do not append \"-sf gpu\" to the command line", &no_gpu_sf_checked)
 					| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&no_gpu_sf_help_text)))
 					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
 					| ftxui::Maybe([&]
 						{return program_internal_names[program_selected] == "lammps" && gpu_device_use_checked;}),
-				ftxui::Checkbox("立即开始运行", &run_now_checked)
+				ftxui::Checkbox("Run immeditally", &run_now_checked)
 					| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&run_now_help_text)))
 					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());}),
-				ftxui::Checkbox("在 Ubuntu 22.04 容器中运行", &run_in_container_checked)
+				ftxui::Checkbox("Run in Ubuntu 22.04 container", &run_in_container_checked)
 					| ftxui::Hoverable(set_help_text(std::experimental::make_observer(&run_in_container_help_text)))
 					| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
 					| ftxui::Maybe([&]{return program_internal_names[program_selected] == "custom";})
 			}) | ftxui::Renderer([&](ftxui::Element inner)
-				{return ftxui::vbox(ftxui::text("高级设置") | ftxui::bgcolor(ftxui::Color::Blue), inner);}),
+				{return ftxui::vbox(ftxui::text("Advanced settings, change it only if you know what you are doing") | ftxui::bgcolor(ftxui::Color::Blue), inner);}),
 			// "几个按钮"
 			ftxui::Container::Horizontal
 			({
 				submit_button,
-				ftxui::Button("取消", screen.ExitLoopClosure())
+				ftxui::Button("Cancel", screen.ExitLoopClosure())
 			})
 				| ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());})
-		}) | ftxui::Renderer([&](ftxui::Element inner){return ftxui::window(ftxui::text("提交新任务"), inner);}),
-		ftxui::Renderer([&]{return ftxui::window(ftxui::text("帮助信息"), ftxui::paragraph(help_text));})
+		}) | ftxui::Renderer([&](ftxui::Element inner){return ftxui::window(ftxui::text("Submit new job"), inner);}),
+		ftxui::Renderer([&]{return ftxui::window(ftxui::text("Help text"), ftxui::paragraph(help_text));})
 	}) | ftxui::Renderer([&](ftxui::Element inner){return ftxui::vbox(inner, ftxui::filler(), ftxui::hbox
 		(
 			ftxui::filler(), ftxui::text("Code by CHN with "),
@@ -645,10 +623,10 @@ std::optional<Job_t> request_new_job_detail_from_user()
 		({
 			ftxui::Renderer([&]{return ftxui::vbox
 			(
-				ftxui::text("布盒里的参数") | ftxui::bgcolor(ftxui::Color::RedLight),
+				ftxui::text("Unacceptibal parameters") | ftxui::bgcolor(ftxui::Color::RedLight),
 				ftxui::paragraph(error_dialog_text)
 			);}) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 30),
-			ftxui::Button("好的", [&]{show_error_dialog = false;})
+			ftxui::Button("OK, I know", [&]{show_error_dialog = false;})
 		}), &show_error_dialog)
 		| ftxui::CatchEvent([&](ftxui::Event event)
 		{
@@ -662,7 +640,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 			return event == ftxui::Event::Return;
 		});
 	std::cout << "\x1b[?1000;1006;1015h" << std::endl;
-    screen.Loop(layout);
+	screen.Loop(layout);
 	std::cout << "\x1b[?1000;1006;1015l" << std::endl;
 	return result;
 }
@@ -745,10 +723,10 @@ std::vector<unsigned> request_cancel_job_from_user()
 					}));
 				return ftxui::Container::Vertical(columns);
 			}() | ftxui::vscroll_indicator | ftxui::frame | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 10)
-				| ftxui::Renderer([&](ftxui::Element inner){return ftxui::window(ftxui::text("任务列表"), inner);}),
+				| ftxui::Renderer([&](ftxui::Element inner){return ftxui::window(ftxui::text("Job list"), inner);}),
 			ftxui::Container::Horizontal
 			({
-				ftxui::Button("刷新", [&]
+				ftxui::Button("Refresh", [&]
 				{
 					please_refresh = true;
 					checked_jobs.clear();
@@ -757,7 +735,7 @@ std::vector<unsigned> request_cancel_job_from_user()
 							checked_jobs.insert(jobs[i].Id);
 					screen.ExitLoopClosure()();
 				}),
-				ftxui::Button("结束选中的任务并退出", [&]
+				ftxui::Button("Cancel selected jobs and exit", [&]
 				{
 					checked_jobs.clear();
 					for (std::size_t i = 0; i < selected.size(); i++)
@@ -765,13 +743,13 @@ std::vector<unsigned> request_cancel_job_from_user()
 							checked_jobs.insert(jobs[i].Id);
 					screen.ExitLoopClosure()();
 				}),
-				ftxui::Button("直接退出", [&]
+				ftxui::Button("Exit without cancel any job", [&]
 				{
 					checked_jobs.clear();
 					screen.ExitLoopClosure()();
 				})
 			}) | ftxui::Renderer([&](ftxui::Element inner){return ftxui::hbox(inner, ftxui::filler());}),
-			ftxui::Renderer([&]{return ftxui::window(ftxui::text("详细信息"), detail);})
+			ftxui::Renderer([&]{return ftxui::window(ftxui::text("Detail information"), detail);})
 		});
 
 		std::cout << "\x1b[?1000;1006;1015h" << std::endl;
