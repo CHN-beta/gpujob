@@ -46,7 +46,7 @@ std::map<unsigned, std::string> detect_gpu_devices()
     {
 		boost::process::search_path("bash"), "-c",
 		". /usr/share/Modules/init/bash && module use /opt/nvidia/hpc_sdk/modulefiles "
-			"&& module load nvhpc/22.11 && pgaccelinfo | grep 'Device Name'",
+			"&& module load nvhpc/22.11 && CUDA_DEVICE_ORDER=PCI_BUS_ID pgaccelinfo | grep 'Device Name'",
 		boost::process::std_out > command_output
 	};
 	std::string a_single_line;
