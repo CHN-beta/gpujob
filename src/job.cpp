@@ -53,7 +53,7 @@ std::map<unsigned, std::string> detect_gpu_devices()
     unsigned i = 0;
 	while (command.running() && std::getline(command_output, a_single_line) && !a_single_line.empty())
 	{
-		std::regex re{"Device Name:\\s+NVIDIA GeForce RTX (.+)"};
+		std::regex re{"Device Name:\\s+NVIDIA GeForce (.+)"};
 		std::smatch match;
 		if (std::regex_search(a_single_line, match, re))
 			devices[i] = match[1];
