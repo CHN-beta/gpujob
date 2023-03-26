@@ -258,6 +258,8 @@ std::optional<Job_t> request_new_job_detail_from_user()
 						"&& module use /opt/intel/oneapi/modulefiles /opt/nvidia/hpc_sdk/modulefiles "
 						"&& module load nvhpc/22.11 mkl"
 						"&& ulimit -s unlimited "
+						"&& ulimit -n unlimited "
+						"&& ulimit -l unlimited "
 						"&& mpirun -np {} -x OMP_NUM_THREADS={} -x MKL_THREADING_LAYER=INTEL "
 							"-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} vasp_gpu_{}_{} "
 						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
@@ -303,6 +305,8 @@ std::optional<Job_t> request_new_job_detail_from_user()
 						"&& module use /opt/intel/oneapi/modulefiles "
 						"&& module load compiler mkl mpi icc "
 						"&& ulimit -s unlimited "
+						"&& ulimit -n unlimited "
+						"&& ulimit -l unlimited "
 						"&& mpirun -np {} -genv OMP_NUM_THREADS {} -genv MKL_THREADING_LAYER INTEL vasp_cpu_{}_{} "
 						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "
 					") 2>&1 | tee -a output.txt",
