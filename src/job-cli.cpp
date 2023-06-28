@@ -96,7 +96,7 @@ int main(int argc, const char** argv)
 						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
 						"&& . /etc/profile.d/modules.sh "
 						"&& module use /opt/intel/oneapi/modulefiles /opt/nvidia/hpc_sdk/modulefiles "
-						"&& module load nvhpc/22.11 mkl/2022.2.1 "
+						"&& module load nvhpc/23.3 mkl/2022.2.1 "
 						"&& mpirun -np {} -x OMP_NUM_THREADS={} -x MKL_THREADING_LAYER=INTEL "
 							"-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} vasp_gpu_{}_{} "
 						"&& echo end at $(date '+%Y-%m-%d %H:%M:%S') "

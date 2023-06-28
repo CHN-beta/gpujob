@@ -256,7 +256,7 @@ std::optional<Job_t> request_new_job_detail_from_user()
 						"echo start at $(date '+%Y-%m-%d %H:%M:%S') "
 						"&& . /etc/profile.d/modules.sh "
 						"&& module use /opt/intel/oneapi/modulefiles /opt/nvidia/hpc_sdk/modulefiles "
-						"&& module load nvhpc/22.11 mkl"
+						"&& module load nvhpc/23.3 mkl"
 						"&& ulimit -s unlimited "
 						"&& mpirun -np {} -x OMP_NUM_THREADS={} -x MKL_THREADING_LAYER=INTEL "
 							"-x CUDA_DEVICE_ORDER=PCI_BUS_ID -x CUDA_VISIBLE_DEVICES={} vasp_gpu_{}_{} "
